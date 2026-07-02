@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Gestion Précurseurs — EMIC - TMLC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #14181D;
+    --panel: #1B2027;
+    --panel-2: #20262E;
+    --line: #2C333D;
+    --text: #EDEBE4;
+    --text-dim: #9AA3AD;
+    --orange: #FF6A2B;
+    --amber: #F2B705;
+    --green: #2E9B6B;
+    --red: #E4432B;
+    --blue: #4C8DFF;
+    --radius: 10px;
+    --display: 'Barlow Condensed', sans-serif;
+    --body: 'IBM Plex Sans', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{ display:flex; min-height:100vh; }
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:264px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; padding:20px 16px;
+  }
+  .brand{ display:flex; align-items:center; gap:8px; margin-bottom:26px; padding:0 6px; white-space:nowrap; }
+  .brand .mark{ width:30px; height:30px; border-radius:6px; background:linear-gradient(135deg,var(--orange),var(--amber)); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
+  .brand .name{ font-family:var(--display); font-weight:700; font-size:19px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; }
+  .brand .sub{ font-size:10px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; }
+
+  .navitem{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer;
+    color:var(--text-dim); font-weight:500; font-size:14.5px; margin-bottom:2px; border:1px solid transparent;
+  }
+  .navitem:hover{ background:var(--panel-2); color:var(--text); }
+  .navitem.active{ background:rgba(255,106,43,0.12); color:var(--orange); border-color:rgba(255,106,43,0.25); font-weight:600;}
+  .navitem .badge{ margin-left:auto; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; border-radius:10px; padding:1px 7px; font-family:var(--mono);}
+
+  .sidebar-footer{ margin-top:auto; padding:12px 6px 0; border-top:1px solid var(--line); }
+  .role-box{ font-size:11px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;}
+
+  /* ---------- MAIN ---------- */
+  .main{ flex:1; padding:26px 34px; max-width:1400px; }
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  .topbar h1{ font-family:var(--display); font-weight:700; font-size:28px; margin:0; letter-spacing:0.2px;}
+  .atelier-pill{
+    display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
+    padding:7px 14px; border-radius:20px; font-size:13px; color:var(--text-dim);
+  }
+  .atelier-pill b{ color:var(--text); font-weight:600;}
+  .qr-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green);}
+
+  /* ---------- KPI CARDS ---------- */
+  .kpi-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:22px; }
+  .kpi-card{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 16px 14px; }
+  .kpi-card .val{ font-family:var(--display); font-size:32px; font-weight:700; line-height:1; }
+  .kpi-card .lbl{ font-size:11.5px; color:var(--text-dim); margin-top:6px; text-transform:uppercase; letter-spacing:0.6px;}
+  .kpi-card.orange .val{ color:var(--orange); }
+  .kpi-card.red .val{ color:var(--red); }
+  .kpi-card.green .val{ color:var(--green); }
+
+  .charts-row{ display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:14px; margin-bottom:22px;}
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px; }
+  .panel h3{ font-family:var(--display); font-weight:600; font-size:16px; margin:0 0 12px; color:var(--text); letter-spacing:0.3px;}
+  .panel canvas{ max-height:220px; }
+
+  /* heatmap */
+  .heat-grid{ display:flex; flex-direction:column; gap:6px; }
+  .heat-row{ display:flex; align-items:center; gap:10px; }
+  .heat-row .name{ width:150px; font-size:12.5px; color:var(--text-dim); flex-shrink:0;}
+  .heat-bar-bg{ flex:1; height:14px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
+  .heat-bar{ height:100%; border-radius:4px; }
+  .heat-bar-multi{ display:flex; height:100%; border-radius:4px; overflow:hidden; }
+  .heat-seg{ height:100%; }
+  .heat-row .count{ width:22px; text-align:right; font-family:var(--mono); font-size:12px; color:var(--text-dim);}
+  .heat-legend{ display:flex; gap:16px; margin-top:12px; flex-wrap:wrap; }
+  .heat-legend .li{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-dim); }
+  .heat-legend .dot{ width:9px; height:9px; border-radius:50%; }
+
+  /* ---------- KANBAN ---------- */
+  .kanban{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; align-items:start; }
+  .kcol{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:10px; min-height:120px;}
+  .kcol h4{ font-family:var(--display); font-size:14.5px; font-weight:600; margin:2px 4px 10px; display:flex; justify-content:space-between; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.4px;}
+  .kcol h4 span{ font-family:var(--mono); color:var(--text); }
+  .card{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 11px; margin-bottom:8px;
+    cursor:pointer; transition:border-color .15s;
+  }
+  .card:hover{ border-color:var(--orange); }
+  .card .cid{ font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:5px;}
+  .card .ctitle{ font-size:13px; font-weight:600; margin-bottom:6px; line-height:1.3;}
+  .card .meta{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{ font-size:9.5px; padding:2px 7px; border-radius:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px;}
+  .tag.g-faible{ background:rgba(46,155,107,.18); color:var(--green);}
+  .tag.g-moyen{ background:rgba(242,183,5,.18); color:var(--amber);}
+  .tag.g-important{ background:rgba(255,106,43,.18); color:var(--orange);}
+  .tag.g-critique{ background:rgba(228,67,43,.2); color:var(--red);}
+  .tag.cat{ background:rgba(76,141,255,.15); color:var(--blue); }
+
+  /* ---------- FORM ---------- */
+  .form-panel{ max-width:760px; }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12.5px; color:var(--text-dim); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px;}
+  .field input[type=text], .field input[type=number], .field textarea, .field select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); padding:10px 12px;
+    border-radius:7px; font-family:var(--body); font-size:14px;
+  }
+  .field textarea{ min-height:90px; resize:vertical; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .grav-options{ display:flex; gap:8px; }
+  .grav-btn{ flex:1; padding:12px 6px; border-radius:8px; border:1.5px solid var(--line); background:var(--panel-2); color:var(--text-dim);
+    cursor:pointer; text-align:center; font-weight:700; font-size:12.5px; text-transform:uppercase; letter-spacing:0.3px;}
+  .grav-btn.sel-faible.on{ border-color:var(--green); background:rgba(46,155,107,.15); color:var(--green);}
+  .grav-btn.sel-moyen.on{ border-color:var(--amber); background:rgba(242,183,5,.15); color:var(--amber);}
+  .grav-btn.sel-important.on{ border-color:var(--orange); background:rgba(255,106,43,.15); color:var(--orange);}
+  .grav-btn.sel-critique.on{ border-color:var(--red); background:rgba(228,67,43,.18); color:var(--red);}
+
+  .btn{
+    background:var(--orange); color:#14181D; border:none; padding:11px 22px; border-radius:8px; font-weight:700;
+    font-size:14px; cursor:pointer; font-family:var(--body); letter-spacing:0.2px;
+  }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn.secondary{ background:transparent; border:1.5px solid var(--line); color:var(--text); }
+  .btn.danger{ background:var(--red); color:#fff; }
+  .btn.small{ padding:7px 14px; font-size:12.5px; }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .photo-drop{
+    border:1.5px dashed var(--line); border-radius:8px; padding:16px; text-align:center; color:var(--text-dim);
+    font-size:13px; cursor:pointer; background:var(--panel-2);
+  }
+  .photo-thumbs{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .photo-thumbs img{ width:64px; height:64px; object-fit:cover; border-radius:6px; border:1px solid var(--line);}
+
+  /* ---------- MODAL / DETAIL ---------- */
+  .overlay{ position:fixed; inset:0; background:rgba(10,12,15,0.72); display:flex; align-items:flex-start; justify-content:center;
+    padding:40px 20px; overflow-y:auto; z-index:50;}
+  .modal{ background:var(--panel); border:1px solid var(--line); border-radius:14px; width:100%; max-width:760px; padding:26px 28px 30px; }
+  .modal-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;}
+  .modal-head h2{ font-family:var(--display); font-size:24px; margin:0; }
+  .close-x{ cursor:pointer; color:var(--text-dim); font-size:22px; line-height:1;}
+  .status-pipeline{ display:flex; gap:4px; margin:16px 0 22px; }
+  .pstep{ flex:1; height:6px; border-radius:3px; background:var(--line); }
+  .pstep.done{ background:var(--orange); }
+  .section-title{ font-family:var(--display); font-size:15px; font-weight:700; color:var(--orange); text-transform:uppercase; letter-spacing:0.5px; margin:18px 0 10px;}
+  .kv{ display:grid; grid-template-columns:150px 1fr; gap:6px 10px; font-size:13.5px; margin-bottom:4px;}
+  .kv .k{ color:var(--text-dim); }
+  .hist{ border-left:2px solid var(--line); padding-left:14px; margin-top:6px;}
+  .hist-item{ position:relative; padding-bottom:12px; font-size:12.5px; color:var(--text-dim);}
+  .hist-item::before{ content:''; position:absolute; left:-19px; top:3px; width:8px; height:8px; border-radius:50%; background:var(--orange);}
+  .hist-item b{ color:var(--text); }
+
+  .empty{ color:var(--text-dim); font-size:13px; padding:20px; text-align:center; }
+  .notif-row{ padding:12px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:14px; align-items:center; }
+  .notif-row.is-read{ opacity:0.55; }
+  .btn.voir-unread{ background:var(--orange); color:#14181D; border:none; }
+  .btn.voir-read{ background:transparent; border:1.5px solid var(--green); color:var(--green); }
+  .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .toast{
+    position:fixed; bottom:22px; right:22px; background:var(--panel); border:1px solid var(--orange); color:var(--text);
+    padding:12px 18px; border-radius:9px; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,.4); z-index:100; max-width:320px;
+  }
+  ::placeholder{ color:#6b7480; }
+
+  /* ---------- AUTH / LOGIN GATE ---------- */
+  .login-wrap{ min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:30px; }
+  .login-card{ width:100%; max-width:560px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:32px 30px; }
+  .login-sub{ text-align:center; color:var(--text-dim); font-size:13.5px; margin-bottom:22px; }
+  .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
+  .role-card{
+    border:1px solid var(--line); background:var(--panel-2); border-radius:10px; padding:14px 12px; cursor:pointer;
+    text-align:center; transition:border-color .15s, background .15s;
+  }
+  .role-card:hover{ border-color:var(--orange); }
+  .role-card.sel{ border-color:var(--orange); background:rgba(255,106,43,0.12); }
+  .role-card .ric{ font-size:20px; margin-bottom:6px; }
+  .role-card .rname{ font-weight:600; font-size:13.5px; }
+  .role-card .rdesc{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:3px; }
+  .login-fields{ border-top:1px solid var(--line); padding-top:16px; margin-top:4px; }
+  .login-error{ color:var(--red); font-size:12.5px; margin:-4px 0 10px; }
+  .login-hint{ text-align:center; color:var(--text-dim); font-size:12.5px; padding-top:6px; }
+
+  /* ---------- SOLO (DECLARANT) LAYOUT ---------- */
+  .main.solo{ max-width:760px; margin:0 auto; width:100%; }
+  .solo-top{ display:flex; align-items:center; justify-content:space-between; padding:20px 0 6px; }
+  .solo-logout{ font-size:12.5px; color:var(--text-dim); cursor:pointer; border:1px solid var(--line); padding:6px 12px; border-radius:7px; }
+  .solo-logout:hover{ color:var(--text); border-color:var(--orange); }
+
+  /* ---------- SIDEBAR CURRENT ROLE / LOGOUT ---------- */
+  .current-role{ font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:10px; }
+  .logout-btn{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text-dim); padding:8px 10px;
+    border-radius:7px; font-family:var(--body); font-size:12.5px; font-weight:500; cursor:pointer; text-align:center;
+  }
+  .logout-btn:hover{ color:var(--text); border-color:var(--red); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================= STATE & STORAGE ============================= */
+const ATELIERS = ["Atelier HITACHI","Atelier levage","Atelier Tour en fosse"];
+const CATEGORIES = ["Sécurité","Maintenance","Qualité","Environnement"];
+const GRAVITES = [
+  {key:"faible", label:"Faible", color:"var(--green)"},
+  {key:"moyen", label:"Moyen", color:"var(--amber)"},
+  {key:"important", label:"Important", color:"var(--orange)"},
+  {key:"critique", label:"Critique", color:"var(--red)"}
+];
+const STATUS_ORDER = ["nouvelle","analyse","affecte","planifie","realisee","cloture"];
+const STATUS_LABEL = {
+  nouvelle:"Nouvelle", analyse:"En analyse", affecte:"Affecté", planifie:"Planifié",
+  realisee:"Intervention réalisée", cloture:"Clôturé"
+};
+
+let state = {
+  auth: { loggedIn:false },    // authentification requise pour tous sauf déclarant
+  loginSelectedRole: null,     // rôle choisi sur l'écran de connexion
+  loginForm: { error:"" },
+  role: null,                  // declarant | hse | chef_centre | coordination | traitement
+  atelierScanne: ATELIERS[0],
+  tab: "dashboard",
+  declarations: [],
+  notifications: [],
+  openId: null,
+  form: emptyForm()
+};
+
+function emptyForm(){
+  return { anonyme:false, nom:"", matricule:"", fonction:"", service:"", categorie:CATEGORIES[0],
+    description:"", gravite:"moyen", photos:[], localisation:"", atelier: ATELIERS[0] };
+}
+
+// Rôles ayant les mêmes prérogatives que le Responsable HSE dans le workflow
+function isHSERole(r){ return r==="hse" || r==="chef_centre" || r==="coordination"; }
+
+const hasStorage = typeof window.storage !== "undefined";
+async function loadData(){
+  try{
+    if(hasStorage){
+      const d = await window.storage.get("declarations", true).catch(()=>null);
+      const n = await window.storage.get("notifications", true).catch(()=>null);
+      state.declarations = d ? JSON.parse(d.value) : [];
+      state.notifications = n ? JSON.parse(n.value) : [];
+    }
+  }catch(e){ console.warn("Storage indisponible, mode mémoire locale.", e); }
+  render();
+}
+async function persist(){
+  if(!hasStorage) return;
+  try{
+    await window.storage.set("declarations", JSON.stringify(state.declarations), true);
+    await window.storage.set("notifications", JSON.stringify(state.notifications), true);
+  }catch(e){ console.warn("Échec de sauvegarde", e); }
+}
+
+function genId(){
+  const n = state.declarations.length + 1;
+  const y = new Date().getFullYear();
+  return "PRC-" + y + "-" + String(n).padStart(4,"0");
+}
+function nowStr(){ return new Date().toLocaleString("fr-FR"); }
+
+function pushHistory(dec, label){
+  dec.historique.push({date: nowStr(), action: label});
+}
+// audience: "admin" (Responsable HSE, Chef de centre, Responsable Coordination uniquement)
+//        ou "all" (admins + Responsable Traitement — ex. résultat conforme / non conforme)
+function notify(dec, message, audience){
+  state.notifications.unshift({id: Date.now()+Math.random(), declarationId: dec.id, message, date: nowStr(), read:false, audience: audience || "admin"});
+}
+function notifVisibleTo(n, role){
+  if(isHSERole(role)) return true;                 // les 3 admins voient toutes les notifications
+  if(role==="traitement") return n.audience==="all"; // traitement : uniquement conforme / non conforme
+  return false;                                      // le déclarant n'a pas accès aux notifications
+}
+
+/* ============================= ACTIONS ============================= */
+function submitDeclaration(){
+  const f = state.form;
+  if(!f.description.trim()){ toast("Merci de décrire la situation observée."); return; }
+  const dec = {
+    id: genId(),
+    atelier: f.atelier || ATELIERS[0],
+    dateCreation: nowStr(),
+    declarant: { anonyme: f.anonyme, nom: f.anonyme ? "Anonyme" : (f.nom||"—"), matricule:f.matricule, fonction:f.fonction, service:f.service },
+    categorie: f.categorie,
+    description: f.description,
+    graviteInitiale: f.gravite,
+    graviteReelle: f.gravite,
+    photos: f.photos,
+    localisation: f.localisation,
+    status: "nouvelle",
+    analyse: null, affectation: null, planification: null, intervention: null, verification: null, cloture: null,
+    historique: []
+  };
+  pushHistory(dec, "Déclaration créée par " + dec.declarant.nom + " — " + dec.atelier);
+  notify(dec, (dec.graviteInitiale==="critique" ? "🔴 CRITIQUE — " : "") + "Nouvelle déclaration " + dec.id + " (" + dec.categorie + ") sur " + dec.atelier);
+  state.declarations.unshift(dec);
+  state.form = emptyForm();
+  if(state.role !== "declarant"){ state.tab = "declarations"; }
+  persist(); render();
+  toast("Déclaration " + dec.id + " envoyée. Statut : Nouvelle déclaration.");
+}
+
+function findDec(id){ return state.declarations.find(d=>d.id===id); }
+
+function doAnalyse(id, payload){
+  const dec = findDec(id);
+  dec.graviteReelle = payload.graviteReelle;
+  dec.analyse = { typeRisque:payload.typeRisque, causeProbable:payload.causeProbable, commentaire:payload.commentaire, date: nowStr() };
+  dec.status = "analyse";
+  pushHistory(dec, "Analyse effectuée par le Responsable HSE — risque : " + payload.typeRisque);
+  persist(); render(); toast("Analyse enregistrée.");
+}
+function doAffectation(id, payload){
+  const dec = findDec(id);
+  dec.affectation = payload;
+  dec.status = "affecte";
+  pushHistory(dec, "Affecté au service " + payload.service + " (responsable : " + payload.responsable + ", SLA : " + payload.slaDate + ")");
+  notify(dec, "Déclaration " + dec.id + " affectée à " + payload.service);
+  if(payload.email){ sendDeadlineEmail(dec, payload.email); }
+  persist(); render();
+  toast("Déclaration affectée." + (payload.email ? " Email envoyé à " + payload.email + "." : ""));
+}
+function sendDeadlineEmail(dec, email){
+  const subject = encodeURIComponent("Deadline de traitement — Déclaration " + dec.id);
+  const body = encodeURIComponent(
+    "Bonjour,\n\nUne déclaration vous a été affectée pour traitement.\n\n" +
+    "Référence : " + dec.id + "\n" +
+    "Atelier : " + dec.atelier + "\n" +
+    "Gravité : " + gInfo(dec.graviteReelle).label + "\n" +
+    "Service chargé : " + dec.affectation.service + "\n" +
+    "Priorité : " + dec.affectation.priorite + "\n" +
+    "Date limite (SLA) : " + dec.affectation.slaDate + "\n\n" +
+    "Merci de planifier et de réaliser l'intervention avant cette échéance.\n\nCordialement."
+  );
+  pushHistory(dec, "Email de notification du deadline envoyé à " + email + " (échéance : " + dec.affectation.slaDate + ")");
+  window.open("mailto:" + email + "?subject=" + subject + "&body=" + body, "_blank");
+}
+function doPlanification(id, payload){
+  const dec = findDec(id);
+  dec.planification = payload;
+  dec.status = "planifie";
+  pushHistory(dec, "Intervention planifiée le " + payload.date + " à " + payload.heure);
+  persist(); render(); toast("Intervention planifiée.");
+}
+function doIntervention(id, payload){
+  const dec = findDec(id);
+  dec.intervention = payload;
+  dec.status = "realisee";
+  pushHistory(dec, "Intervention réalisée — temps passé : " + payload.tempsPasse + " min");
+  notify(dec, "Intervention réalisée sur " + dec.id + ", en attente de vérification HSE");
+  persist(); render(); toast("Intervention enregistrée.");
+}
+function doVerification(id, conforme, commentaire){
+  const dec = findDec(id);
+  dec.verification = { conforme, commentaire, date: nowStr() };
+  if(conforme){
+    dec.status = "cloture";
+    dec.cloture = { commentaireFinal: commentaire, dateCloture: nowStr(), delaiReel: computeDelay(dec) };
+    pushHistory(dec, "Vérification conforme — dossier clôturé");
+    notify(dec, "Déclaration " + dec.id + " clôturée — vérification conforme", "all");
+  } else {
+    dec.status = "planifie";
+    pushHistory(dec, "Non conforme — retour en planification");
+    notify(dec, dec.id + " non conforme, nouvelle intervention requise", "all");
+  }
+  persist(); render(); toast(conforme ? "Dossier clôturé." : "Non conforme : retour à la planification.");
+}
+function computeDelay(dec){
+  const start = new Date(dec.dateCreation.split(" ")[0].split("/").reverse().join("-"));
+  const end = new Date();
+  const days = Math.max(0, Math.round((end-start)/(1000*60*60*24)));
+  return days + " j";
+}
+
+function exportDeclarationsPDF(){
+  if(typeof window.jspdf==="undefined"){ toast("Bibliothèque PDF indisponible."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageH = doc.internal.pageSize.getHeight();
+  let y = 16;
+  doc.setFont("helvetica","bold"); doc.setFontSize(14);
+  doc.text("Registre des déclarations — Gestion Précurseurs (EMIC - TMLC)", 14, y); y+=6;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(90);
+  doc.text("Édité le " + nowStr() + " — " + state.declarations.length + " déclaration(s)", 14, y); y+=8;
+  doc.setDrawColor(200);
+
+  state.declarations.forEach(d=>{
+    if(y > pageH - 30){ doc.addPage(); y = 16; }
+    doc.setTextColor(20); doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
+    doc.text(d.id + "  —  " + d.atelier, 14, y); y+=5;
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(60);
+    doc.text("Catégorie : " + d.categorie + "   |   Gravité : " + gInfo(d.graviteReelle).label + "   |   Statut : " + STATUS_LABEL[d.status] + "   |   Créée le : " + d.dateCreation, 14, y); y+=5;
+    doc.text("Déclarant : " + d.declarant.nom + (d.declarant.service ? " (" + d.declarant.service + ")" : ""), 14, y); y+=5;
+    const descLines = doc.splitTextToSize("Description : " + d.description, 180);
+    doc.text(descLines, 14, y); y += descLines.length*4.2 + 1;
+    if(d.cloture){
+      doc.text("Clôturée le " + d.cloture.dateCloture + " — délai réel : " + d.cloture.delaiReel, 14, y); y+=5;
+    }
+    doc.setDrawColor(220); doc.line(14, y, 196, y); y+=6;
+  });
+
+  doc.save("declarations_precurseurs_" + Date.now() + ".pdf");
+  toast("Export PDF généré.");
+}
+
+let toastTimer=null;
+function toast(msg){
+  const el = document.getElementById("toast");
+  if(!el) return;
+  el.textContent = msg; el.style.display="block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.display="none"; }, 3200);
+}
+
+/* ============================= RENDER HELPERS ============================= */
+function gInfo(key){ return GRAVITES.find(g=>g.key===key) || GRAVITES[1]; }
+
+function kpis(){
+  const all = state.declarations;
+  const total = all.length;
+  const cloturees = all.filter(d=>d.status==="cloture").length;
+  const ouvertes = total - cloturees;
+  const critiques = all.filter(d=>d.graviteReelle==="critique" && d.status!=="cloture").length;
+  const tauxCloture = total? Math.round(cloturees/total*100):0;
+  const delais = all.filter(d=>d.cloture).map(d=>parseInt(d.cloture.delaiReel)||0);
+  const delaiMoyen = delais.length? Math.round(delais.reduce((a,b)=>a+b,0)/delais.length) : 0;
+  const respectSLA = all.filter(d=>d.affectation && d.status==="cloture").length; // simplified indicator
+  return {total, cloturees, ouvertes, critiques, tauxCloture, delaiMoyen};
+}
+
+function renderApp(){
+  const app = document.getElementById("app");
+
+  // Écran de connexion : le déclarant y accède directement sans authentification,
+  // les 4 autres rôles doivent s'authentifier.
+  if(!state.auth.loggedIn){
+    app.innerHTML = loginGateHTML();
+    bindLoginEvents();
+    return;
+  }
+
+  // Le déclarant ne voit que le formulaire, sans menu latéral ni autres rubriques.
+  if(state.role === "declarant"){
+    app.innerHTML = `
+      <div class="main solo">
+        ${soloTopHTML()}
+        ${topbarHTML()}
+        ${formHTML()}
+      </div>
+      <div id="toast" class="toast" style="display:none;"></div>
+    `;
+    bindEvents();
+    return;
+  }
+
+  app.innerHTML = `
+    ${sidebarHTML()}
+    <div class="main">
+      ${topbarHTML()}
+      ${tabContentHTML()}
+    </div>
+    <div id="toast" class="toast" style="display:none;"></div>
+    ${state.openId ? modalHTML(findDec(state.openId)) : ""}
+  `;
+  bindEvents();
+  if(state.tab==="dashboard") drawCharts();
+}
+function render(){ renderApp(); }
+
+/* ---------- AUTHENTIFICATION ---------- */
+function loginGateHTML(){
+  const selectedRole = state.loginSelectedRole;
+  const roles = [
+    {k:"declarant", icon:"✚", name:"Déclarant", desc:"Émettre une déclaration"},
+    {k:"hse", icon:"🛡", name:"Responsable HSE", desc:"Admin"},
+    {k:"chef_centre", icon:"🏭", name:"Chef de centre", desc:"Admin"},
+    {k:"coordination", icon:"🧭", name:"Resp. Coordination", desc:"Admin"},
+    {k:"traitement", icon:"🔧", name:"Resp. Traitement", desc:"Traitement"},
+  ];
+  return `
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand" style="justify-content:center;">
+        <div class="mark">GP</div>
+        <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
+      </div>
+      <div class="login-sub">Sélectionnez votre profil pour continuer</div>
+      <div class="role-grid">
+        ${roles.map(r=>`
+          <div class="role-card ${selectedRole===r.k?'sel':''}" data-role="${r.k}">
+            <div class="ric">${r.icon}</div>
+            <div class="rname">${r.name}</div>
+            <div class="rdesc">${r.desc}</div>
+          </div>`).join("")}
+      </div>
+      ${selectedRole==="declarant" ? `
+        <button class="btn" id="btnEnterDeclarant" style="width:100%;">Accéder au formulaire de déclaration →</button>
+      ` : selectedRole ? `
+        <div class="login-fields">
+          <div class="field"><label>Identifiant</label><input type="text" id="loginUser" placeholder="Identifiant"></div>
+          <div class="field"><label>Mot de passe</label><input type="password" id="loginPass" placeholder="Mot de passe"></div>
+          ${state.loginForm.error ? `<div class="login-error">${state.loginForm.error}</div>` : ""}
+          <button class="btn" id="btnLogin" style="width:100%;">Se connecter</button>
+        </div>
+      ` : `<div class="login-hint">Choisissez un profil ci-dessus pour continuer.</div>`}
+    </div>
+  </div>`;
+}
+
+function soloTopHTML(){
+  return `
+  <div class="solo-top">
+    <div class="brand">
+      <div class="mark">GP</div>
+      <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
+    </div>
+    <div class="solo-logout" id="logoutBtn">Changer de profil</div>
+  </div>`;
+}
+
+function bindLoginEvents(){
+  document.querySelectorAll(".role-card").forEach(el=>{
+    el.onclick = ()=>{ state.loginSelectedRole = el.dataset.role; state.loginForm.error=""; render(); };
+  });
+  const btnEnterDeclarant = document.getElementById("btnEnterDeclarant");
+  if(btnEnterDeclarant) btnEnterDeclarant.onclick = ()=>{
+    state.role = "declarant";
+    state.auth.loggedIn = true;
+    state.tab = "nouvelle";
+    render();
+  };
+  const btnLogin = document.getElementById("btnLogin");
+  if(btnLogin) btnLogin.onclick = ()=>{
+    const u = (document.getElementById("loginUser").value||"").trim();
+    const p = (document.getElementById("loginPass").value||"").trim();
+    if(!u || !p){ state.loginForm.error = "Veuillez renseigner votre identifiant et votre mot de passe."; render(); return; }
+    state.role = state.loginSelectedRole;
+    state.auth.loggedIn = true;
+    state.loginForm.error = "";
+    state.tab = "dashboard";
+    render();
+  };
+}
+
+function sidebarHTML(){
+  const role = state.role;
+  const unread = state.notifications.filter(n=>!n.read && notifVisibleTo(n, role)).length;
+  let items = [];
+  if(isHSERole(role)){
+    // Responsable HSE, Chef de centre, Responsable Coordination : accès complet (admins)
+    items = [
+      {k:"dashboard", label:"Tableau de bord", icon:"▦"},
+      {k:"declarations", label:"Déclarations", icon:"☰"},
+      {k:"notifications", label:"Notifications", icon:"◔", badge:unread},
+    ];
+  } else if(role==="traitement"){
+    // Responsable Traitement : tableau de bord + notification (conforme / non conforme)
+    items = [
+      {k:"dashboard", label:"Tableau de bord", icon:"▦"},
+      {k:"notifications", label:"Notifications", icon:"◔", badge:unread},
+    ];
+  }
+  return `
+  <div class="sidebar">
+    <div class="brand">
+      <div class="mark">GP</div>
+      <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
+    </div>
+    ${items.map(it=>`
+      <div class="navitem ${state.tab===it.k?'active':''}" data-tab="${it.k}">
+        <span>${it.icon}</span><span>${it.label}</span>
+        ${it.badge?`<span class="badge">${it.badge}</span>`:""}
+      </div>`).join("")}
+    <div class="sidebar-footer">
+      <div class="role-box">Connecté en tant que</div>
+      <div class="current-role">${roleLabel(role)}</div>
+      <div class="logout-btn" id="logoutBtn">Déconnexion</div>
+    </div>
+  </div>`;
+}
+
+function topbarHTML(){
+  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle déclaration", declarations:"Déclarations", notifications:"Notifications"};
+  return `
+  <div class="topbar">
+    <h1>${titles[state.tab]}</h1>
+    ${state.tab!=="nouvelle" ? `
+    <div class="atelier-pill"><span class="qr-dot"></span> QR scanné : <b>&nbsp;${state.atelierScanne}</b>
+      <select id="atelierSelect" style="margin-left:8px;background:transparent;border:none;color:var(--text-dim);font-size:12px;">
+        ${ATELIERS.map(a=>`<option ${a===state.atelierScanne?'selected':''}>${a}</option>`).join("")}
+      </select>
+    </div>` : ""}
+  </div>`;
+}
+
+function tabContentHTML(){
+  if(state.tab==="declarations" && isHSERole(state.role)) return kanbanHTML();
+  if(state.tab==="notifications") return notificationsHTML();
+  return dashboardHTML();
+}
+
+/* ---------- DASHBOARD ---------- */
+function assignedCardHTML(d){
+  return `<div class="card" data-open="${d.id}">
+    <div class="cid">${d.id} · ${d.atelier.split(' — ')[0]}</div>
+    <div class="ctitle">${d.description.slice(0,70)}${d.description.length>70?'…':''}</div>
+    <div class="meta">
+      <span class="tag g-${d.graviteReelle}">${gInfo(d.graviteReelle).label}</span>
+      <span class="tag cat">${STATUS_LABEL[d.status]}</span>
+    </div>
+  </div>`;
+}
+
+function assignedPanelHTML(){
+  // Responsable Traitement : uniquement ce qui lui est attribué (affecté, planifié, réalisé)
+  const mine = state.declarations.filter(d=>["affecte","planifie","realisee"].includes(d.status));
+  return `<div class="panel" style="margin-bottom:22px;">
+    <h3>Mes déclarations à traiter</h3>
+    ${mine.length===0
+      ? `<div class="empty">Aucune déclaration attribuée pour le moment.</div>`
+      : `<div class="kanban" style="grid-template-columns:repeat(${Math.min(3,mine.length)},1fr);">
+          ${mine.map(d=>assignedCardHTML(d)).join("")}
+        </div>`}
+  </div>`;
+}
+
+function dashboardHTML(){
+  const k = kpis();
+  const byAtelier = ATELIERS.map(a=>({a, n: state.declarations.filter(d=>d.atelier===a).length}));
+  const maxA = Math.max(1, ...byAtelier.map(x=>x.n));
+  return `
+  ${state.role==="traitement" ? assignedPanelHTML() : ""}
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="val">${k.total}</div><div class="lbl">Déclarations totales</div></div>
+    <div class="kpi-card orange"><div class="val">${k.ouvertes}</div><div class="lbl">Ouvertes</div></div>
+    <div class="kpi-card green"><div class="val">${k.cloturees}</div><div class="lbl">Clôturées</div></div>
+    <div class="kpi-card red"><div class="val">${k.critiques}</div><div class="lbl">Critiques actives</div></div>
+    <div class="kpi-card"><div class="val">${k.tauxCloture}%</div><div class="lbl">Taux de clôture</div></div>
+    <div class="kpi-card"><div class="val">${k.delaiMoyen}j</div><div class="lbl">Délai moyen</div></div>
+  </div>
+  <div class="charts-row">
+    <div class="panel"><h3>Répartition par gravité</h3><canvas id="chartGravite"></canvas></div>
+    <div class="panel"><h3>Répartition par catégorie</h3><canvas id="chartCategorie"></canvas></div>
+    <div class="panel"><h3>Statuts en cours</h3><canvas id="chartStatut"></canvas></div>
+  </div>
+  <div class="panel">
+    <h3>Carte des zones les plus à risque (par atelier)</h3>
+    <div class="heat-grid">
+      ${byAtelier.map(x=>{
+        const decsA = state.declarations.filter(d=>d.atelier===x.a);
+        const segs = GRAVITES.map(g=>({g, n: decsA.filter(d=>d.graviteReelle===g.key).length})).filter(s=>s.n>0);
+        const widthPct = x.n/maxA*100;
+        return `
+        <div class="heat-row">
+          <div class="name">${x.a}</div>
+          <div class="heat-bar-bg">
+            <div class="heat-bar-multi" style="width:${widthPct}%;">
+              ${segs.map(s=>`<div class="heat-seg" style="flex:${s.n} 0 0%; background:${s.g.color};" title="${s.g.label} : ${s.n}"></div>`).join("")}
+            </div>
+          </div>
+          <div class="count">${x.n}</div>
+        </div>`;}).join("")}
+    </div>
+    <div class="heat-legend">
+      ${GRAVITES.map(g=>`<div class="li"><span class="dot" style="background:${g.color};"></span>${g.label}</div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function drawCharts(){
+  if(typeof Chart==="undefined") return;
+  const dark = "#9AA3AD";
+  Chart.defaults.color = dark;
+  Chart.defaults.borderColor = "#2C333D";
+
+  const graviteData = GRAVITES.map(g=>state.declarations.filter(d=>d.graviteReelle===g.key).length);
+  const cg = document.getElementById("chartGravite");
+  if(cg) new Chart(cg, { type:"doughnut", data:{ labels: GRAVITES.map(g=>g.label),
+    datasets:[{ data:graviteData, backgroundColor:["#2E9B6B","#F2B705","#FF6A2B","#E4432B"], borderWidth:0 }]},
+    options:{ plugins:{legend:{position:"bottom", labels:{boxWidth:10, font:{size:11}}}} } });
+
+  const catData = CATEGORIES.map(c=>state.declarations.filter(d=>d.categorie===c).length);
+  const cc = document.getElementById("chartCategorie");
+  if(cc) new Chart(cc, { type:"bar", data:{ labels:CATEGORIES,
+    datasets:[{ data:catData, backgroundColor:"#4C8DFF", borderRadius:4 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{ ticks:{precision:0}, grid:{color:"#2C333D"} } } } });
+
+  const statData = STATUS_ORDER.map(s=>state.declarations.filter(d=>d.status===s).length);
+  const cs = document.getElementById("chartStatut");
+  if(cs) new Chart(cs, { type:"bar", data:{ labels: STATUS_ORDER.map(s=>STATUS_LABEL[s]),
+    datasets:[{ data:statData, backgroundColor:"#FF6A2B", borderRadius:4 }]},
+    options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{ ticks:{precision:0}, grid:{color:"#2C333D"} }, y:{grid:{display:false}} } } });
+}
+
+/* ---------- FORM (declaration) ---------- */
+function formHTML(){
+  const f = state.form;
+  return `
+  <div class="panel form-panel">
+    <div class="field">
+      <label>Atelier concerné</label>
+      <select id="f_atelier">${ATELIERS.map(a=>`<option ${a===f.atelier?'selected':''}>${a}</option>`).join("")}</select>
+    </div>
+    <div class="field">
+      <label>Identification</label>
+      <div class="row2">
+        <input type="text" id="f_nom" placeholder="Nom et prénom" value="${f.nom}" ${f.anonyme?'disabled':''}>
+        <input type="text" id="f_matricule" placeholder="Matricule (optionnel)" value="${f.matricule}">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:400;text-transform:none;">
+        <input type="checkbox" id="f_anonyme" ${f.anonyme?'checked':''}> Déclaration anonyme
+      </label>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Fonction</label><input type="text" id="f_fonction" value="${f.fonction}" placeholder="Ex. Technicien"></div>
+      <div class="field"><label>Service</label><input type="text" id="f_service" value="${f.service}" placeholder="Ex. Production"></div>
+    </div>
+    <div class="field">
+      <label>Catégorie du précurseur</label>
+      <select id="f_categorie">${CATEGORIES.map(c=>`<option ${c===f.categorie?'selected':''}>${c}</option>`).join("")}</select>
+    </div>
+    <div class="field">
+      <label>Description détaillée</label>
+      <textarea id="f_description" placeholder="Que s'est-il passé ? Quel danger ? Quels équipements ? Conséquences possibles ?">${f.description}</textarea>
+    </div>
+    <div class="field">
+      <label>Niveau de gravité perçu</label>
+      <div class="grav-options">
+        ${GRAVITES.map(g=>`<div class="grav-btn sel-${g.key} ${f.gravite===g.key?'on':''}" data-gravite="${g.key}">${g.label}</div>`).join("")}
+      </div>
+    </div>
+    <div class="field">
+      <label>Localisation / photo</label>
+      <div class="photo-drop" id="photoDrop">📷 Cliquer pour ajouter une ou plusieurs photos</div>
+      <input type="file" id="photoInput" accept="image/*" multiple style="display:none;">
+      <div class="photo-thumbs">${f.photos.map(p=>`<img src="${p}">`).join("")}</div>
+      <input type="text" id="f_localisation" placeholder="Commentaire de localisation (ex. proche presse n°3)" value="${f.localisation}" style="margin-top:10px;">
+    </div>
+    <button class="btn" id="submitForm">Valider et envoyer la déclaration</button>
+  </div>`;
+}
+
+/* ---------- KANBAN ---------- */
+function kanbanHTML(){
+  const exportBar = `<div class="section-header">
+    <div style="font-size:12.5px;color:var(--text-dim);">${state.declarations.length} déclaration(s) au total</div>
+    <button class="btn small" id="btnExportPDF" ${state.declarations.length===0?'disabled':''}>⭳ Télécharger tout (PDF — traçabilité)</button>
+  </div>`;
+  if(state.declarations.length===0){
+    return exportBar + `<div class="panel"><div class="empty">Aucune déclaration pour le moment. Créez-en une depuis l'onglet « Nouvelle déclaration ».</div></div>`;
+  }
+  return exportBar + `<div class="kanban">
+    ${STATUS_ORDER.map(s=>{
+      const items = state.declarations.filter(d=>d.status===s);
+      return `<div class="kcol">
+        <h4>${STATUS_LABEL[s]} <span>${items.length}</span></h4>
+        ${items.map(d=>`
+          <div class="card" data-open="${d.id}">
+            <div class="cid">${d.id} · ${d.atelier.split(' — ')[0]}</div>
+            <div class="ctitle">${d.description.slice(0,70)}${d.description.length>70?'…':''}</div>
+            <div class="meta">
+              <span class="tag g-${d.graviteReelle}">${gInfo(d.graviteReelle).label}</span>
+              <span class="tag cat">${d.categorie}</span>
+            </div>
+          </div>`).join("") || `<div class="empty" style="padding:10px;font-size:11.5px;">Vide</div>`}
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+/* ---------- NOTIFICATIONS ---------- */
+function notificationsHTML(){
+  const list = state.notifications.filter(n=>notifVisibleTo(n, state.role));
+  if(list.length===0) return `<div class="panel"><div class="empty">Aucune notification.</div></div>`;
+  const unread = list.filter(n=>!n.read).length;
+  return `<div class="panel">
+    <div class="section-header">
+      <div style="font-size:12.5px;color:var(--text-dim);">${unread} non lue(s) sur ${list.length}</div>
+    </div>
+    ${list.map(n=>`
+      <div class="notif-row ${n.read?'is-read':''}">
+        <div>
+          <div style="font-size:13.5px;">${n.message}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${n.date}</div>
+        </div>
+        <span class="btn small ${n.read?'voir-read':'voir-unread'}" data-open="${n.declarationId}" data-notifid="${n.id}">${n.read?'✔ Vue':'Voir'}</span>
+      </div>`).join("")}
+  </div>`;
+}
+
+/* ---------- DETAIL MODAL (role-driven actions) ---------- */
+function modalHTML(dec){
+  if(!dec) return "";
+  const stepIndex = STATUS_ORDER.indexOf(dec.status);
+  return `
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h2>${dec.id}</h2>
+          <div style="color:var(--text-dim);font-size:13px;margin-top:2px;">${dec.atelier} · créée le ${dec.dateCreation}</div>
+        </div>
+        <div class="close-x" id="closeModal">✕</div>
+      </div>
+      <div class="status-pipeline">
+        ${STATUS_ORDER.map((s,i)=>`<div class="pstep ${i<=stepIndex?'done':''}" title="${STATUS_LABEL[s]}"></div>`).join("")}
+      </div>
+
+      <div class="section-title">Déclaration</div>
+      <div class="kv"><div class="k">Déclarant</div><div>${dec.declarant.nom} — ${dec.declarant.fonction||'—'} (${dec.declarant.service||'—'})</div></div>
+      <div class="kv"><div class="k">Catégorie</div><div>${dec.categorie}</div></div>
+      <div class="kv"><div class="k">Gravité</div><div><span class="tag g-${dec.graviteReelle}">${gInfo(dec.graviteReelle).label}</span> ${dec.graviteInitiale!==dec.graviteReelle?`<span style="color:var(--text-dim);font-size:11.5px;">(initiale : ${gInfo(dec.graviteInitiale).label})</span>`:''}</div></div>
+      <div class="kv"><div class="k">Description</div><div>${dec.description}</div></div>
+      <div class="kv"><div class="k">Localisation</div><div>${dec.localisation||'—'}</div></div>
+      ${dec.photos.length? `<div class="photo-thumbs">${dec.photos.map(p=>`<img src="${p}">`).join("")}</div>`:""}
+
+      ${actionBlockHTML(dec)}
+
+      <div class="section-title">Historique</div>
+      <div class="hist">
+        ${dec.historique.map(h=>`<div class="hist-item"><b>${h.date}</b><br>${h.action}</div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function actionBlockHTML(dec){
+  const role = state.role;
+  // HSE (et rôles équivalents : Chef de centre, Responsable Coordination): analyse step
+  if(isHSERole(role) && dec.status==="nouvelle"){
+    return `
+    <div class="section-title">Analyse et qualification (${roleLabel(role)})</div>
+    <div class="row2">
+      <div class="field"><label>Gravité réelle</label>
+        <select id="a_gravite">${GRAVITES.map(g=>`<option value="${g.key}" ${g.key===dec.graviteReelle?'selected':''}>${g.label}</option>`).join("")}</select></div>
+      <div class="field"><label>Type de risque</label><input type="text" id="a_type" placeholder="Ex. Risque mécanique"></div>
+    </div>
+    <div class="field"><label>Cause probable</label><input type="text" id="a_cause" placeholder="Ex. Défaut de maintenance préventive"></div>
+    <div class="field"><label>Commentaire</label><textarea id="a_comment" placeholder="Observations complémentaires"></textarea></div>
+    <button class="btn" id="btnAnalyse" data-id="${dec.id}">Valider l'analyse</button>`;
+  }
+  if(isHSERole(role) && dec.status==="analyse"){
+    return `
+    <div class="section-title">Affectation du traitement (${roleLabel(role)})</div>
+    <div class="row2">
+      <div class="field"><label>Service chargé</label><input type="text" id="af_service" placeholder="Ex. Maintenance"></div>
+      <div class="field"><label>Responsable intervention</label><input type="text" id="af_resp" placeholder="Nom du responsable"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Priorité</label>
+        <select id="af_prio"><option>Basse</option><option selected>Normale</option><option>Haute</option><option>Urgente</option></select></div>
+      <div class="field"><label>Date limite (SLA)</label><input type="text" id="af_sla" placeholder="jj/mm/aaaa"></div>
+    </div>
+    <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 techniciens, pièce détachée X"></div>
+    <div class="field"><label>Email du responsable de traitement</label><input type="text" id="af_email" placeholder="Ex. nom.prenom@entreprise.com"></div>
+    <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et envoyer le deadline par email</button>`;
+  }
+  // Traitement: planification
+  if(role==="traitement" && dec.status==="affecte"){
+    return `
+    <div class="section-title">Planification de l'intervention</div>
+    <div class="row2">
+      <div class="field"><label>Date</label><input type="text" id="p_date" placeholder="jj/mm/aaaa"></div>
+      <div class="field"><label>Heure</label><input type="text" id="p_heure" placeholder="hh:mm"></div>
+    </div>
+    <div class="field"><label>Techniciens affectés</label><input type="text" id="p_tech" placeholder="Noms des techniciens"></div>
+    <div class="field"><label>Matériel nécessaire</label><input type="text" id="p_mat" placeholder="Ex. Clé dynamométrique, EPI"></div>
+    <button class="btn" id="btnPlanifier" data-id="${dec.id}">Planifier</button>`;
+  }
+  if(role==="traitement" && dec.status==="planifie"){
+    return `
+    <div class="section-title">Réalisation des actions correctives</div>
+    <div class="field"><label>Actions réalisées</label><textarea id="i_actions" placeholder="Décrire les travaux effectués"></textarea></div>
+    <div class="row2">
+      <div class="field"><label>Temps passé (min)</label><input type="number" id="i_temps" placeholder="60"></div>
+      <div class="field"><label>Difficultés rencontrées</label><input type="text" id="i_diff" placeholder="Optionnel"></div>
+    </div>
+    <button class="btn" id="btnIntervention" data-id="${dec.id}">Enregistrer l'intervention</button>`;
+  }
+  // HSE (et rôles équivalents): vérification
+  if(isHSERole(role) && dec.status==="realisee"){
+    return `
+    <div class="section-title">Vérification de l'efficacité (${roleLabel(role)})</div>
+    <div class="field"><label>Commentaire de vérification</label><textarea id="v_comment" placeholder="Constat sur le terrain"></textarea></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" id="btnConforme" data-id="${dec.id}">✔ Conforme — clôturer</button>
+      <button class="btn danger" id="btnNonConforme" data-id="${dec.id}">✘ Non conforme — replanifier</button>
+    </div>`;
+  }
+  if(dec.status==="cloture"){
+    return `<div class="section-title">Clôture</div>
+      <div class="kv"><div class="k">Commentaire final</div><div>${dec.cloture.commentaireFinal||'—'}</div></div>
+      <div class="kv"><div class="k">Délai réel</div><div>${dec.cloture.delaiReel}</div></div>`;
+  }
+  return `<div style="color:var(--text-dim);font-size:12.5px;margin:14px 0;">Aucune action disponible pour le rôle « ${roleLabel(role)} » à ce stade. Changez de rôle dans le menu latéral pour poursuivre le traitement.</div>`;
+}
+function roleLabel(r){ return {declarant:"Déclarant", hse:"Responsable HSE", chef_centre:"Chef de centre", coordination:"Responsable Coordination", traitement:"Responsable Traitement"}[r]; }
+
+/* ============================= EVENTS ============================= */
+function bindEvents(){
+  document.querySelectorAll(".navitem").forEach(el=>{
+    el.onclick = ()=>{ state.tab = el.dataset.tab; render(); };
+  });
+  const logoutBtn = document.getElementById("logoutBtn");
+  if(logoutBtn) logoutBtn.onclick = ()=>{
+    state.auth.loggedIn = false;
+    state.role = null;
+    state.loginSelectedRole = null;
+    state.loginForm.error = "";
+    state.tab = "dashboard";
+    state.openId = null;
+    render();
+  };
+  const atelierSel = document.getElementById("atelierSelect");
+  if(atelierSel) atelierSel.onchange = e=>{ state.atelierScanne = e.target.value; render(); };
+
+  // form
+  const bind = (id, key, checkbox)=>{
+    const el = document.getElementById(id);
+    if(el) el.oninput = e=>{ state.form[key] = checkbox ? e.target.checked : e.target.value; if(checkbox) render(); };
+  };
+  bind("f_nom","nom"); bind("f_matricule","matricule"); bind("f_fonction","fonction");
+  bind("f_service","service"); bind("f_description","description"); bind("f_localisation","localisation");
+  bind("f_anonyme","anonyme",true);
+  const catSel = document.getElementById("f_categorie");
+  if(catSel) catSel.onchange = e=>{ state.form.categorie = e.target.value; };
+  const atelierFormSel = document.getElementById("f_atelier");
+  if(atelierFormSel) atelierFormSel.onchange = e=>{ state.form.atelier = e.target.value; };
+  document.querySelectorAll(".grav-btn").forEach(el=>{
+    el.onclick = ()=>{ state.form.gravite = el.dataset.gravite; render(); };
+  });
+  const photoDrop = document.getElementById("photoDrop");
+  const photoInput = document.getElementById("photoInput");
+  if(photoDrop) photoDrop.onclick = ()=> photoInput.click();
+  if(photoInput) photoInput.onchange = e=>{
+    const files = Array.from(e.target.files);
+    let remaining = files.length;
+    if(remaining===0) return;
+    files.forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = ev=>{ state.form.photos.push(ev.target.result); remaining--; if(remaining===0) render(); };
+      reader.readAsDataURL(file);
+    });
+  };
+  const submitBtn = document.getElementById("submitForm");
+  if(submitBtn) submitBtn.onclick = submitDeclaration;
+
+  // kanban / notif open
+  document.querySelectorAll("[data-open]").forEach(el=>{
+    el.onclick = ()=>{
+      state.openId = el.dataset.open;
+      if(el.dataset.notifid){
+        const n = state.notifications.find(x=>String(x.id)===el.dataset.notifid);
+        if(n){ n.read = true; persist(); }
+      }
+      render();
+    };
+  });
+  const btnExportPDF = document.getElementById("btnExportPDF");
+  if(btnExportPDF) btnExportPDF.onclick = exportDeclarationsPDF;
+  const closeM = document.getElementById("closeModal");
+  if(closeM) closeM.onclick = ()=>{ state.openId = null; render(); };
+  const overlay = document.getElementById("overlay");
+  if(overlay) overlay.onclick = (e)=>{ if(e.target.id==="overlay"){ state.openId=null; render(); } };
+
+  // workflow actions
+  const btnAnalyse = document.getElementById("btnAnalyse");
+  if(btnAnalyse) btnAnalyse.onclick = ()=>{
+    doAnalyse(btnAnalyse.dataset.id, {
+      graviteReelle: document.getElementById("a_gravite").value,
+      typeRisque: document.getElementById("a_type").value || "Non précisé",
+      causeProbable: document.getElementById("a_cause").value || "Non précisée",
+      commentaire: document.getElementById("a_comment").value
+    });
+  };
+  const btnAffecter = document.getElementById("btnAffecter");
+  if(btnAffecter) btnAffecter.onclick = ()=>{
+    doAffectation(btnAffecter.dataset.id, {
+      service: document.getElementById("af_service").value || "Non précisé",
+      responsable: document.getElementById("af_resp").value || "Non précisé",
+      priorite: document.getElementById("af_prio").value,
+      slaDate: document.getElementById("af_sla").value || "—",
+      ressources: document.getElementById("af_ress").value,
+      email: document.getElementById("af_email").value.trim()
+    });
+  };
+  const btnPlanifier = document.getElementById("btnPlanifier");
+  if(btnPlanifier) btnPlanifier.onclick = ()=>{
+    doPlanification(btnPlanifier.dataset.id, {
+      date: document.getElementById("p_date").value || "—",
+      heure: document.getElementById("p_heure").value || "—",
+      techniciens: document.getElementById("p_tech").value,
+      materiel: document.getElementById("p_mat").value
+    });
+  };
+  const btnIntervention = document.getElementById("btnIntervention");
+  if(btnIntervention) btnIntervention.onclick = ()=>{
+    doIntervention(btnIntervention.dataset.id, {
+      actions: document.getElementById("i_actions").value,
+      tempsPasse: document.getElementById("i_temps").value || "0",
+      difficultes: document.getElementById("i_diff").value
+    });
+  };
+  const btnConforme = document.getElementById("btnConforme");
+  if(btnConforme) btnConforme.onclick = ()=> doVerification(btnConforme.dataset.id, true, document.getElementById("v_comment").value);
+  const btnNonConforme = document.getElementById("btnNonConforme");
+  if(btnNonConforme) btnNonConforme.onclick = ()=> doVerification(btnNonConforme.dataset.id, false, document.getElementById("v_comment").value);
+}
+
+/* ============================= BACKEND API BINDING ============================= */
+const API_BASE = window.GESPREC_API_BASE || "";
+let apiToken = localStorage.getItem("gesprec_token") || "";
+const savedUser = localStorage.getItem("gesprec_user");
+if(apiToken && savedUser){
+  try{
+    const u = JSON.parse(savedUser);
+    state.auth.loggedIn = true;
+    state.role = u.role;
+    state.loginSelectedRole = u.role;
+  }catch(e){ localStorage.removeItem("gesprec_user"); }
+}
+
+async function api(path, options = {}){
+  const headers = options.headers ? {...options.headers} : {};
+  if(options.body && !(options.body instanceof FormData) && !(options.body instanceof URLSearchParams)){
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+  }
+  if(apiToken) headers.Authorization = "Bearer " + apiToken;
+  const res = await fetch(API_BASE + path, {...options, headers});
+  if(!res.ok){
+    let msg = "Erreur API";
+    try{
+      const err = await res.json();
+      msg = err.detail || JSON.stringify(err);
+    }catch(e){ msg = await res.text(); }
+    throw new Error(msg);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function fmtDate(value){
+  if(!value) return "—";
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? value : d.toLocaleString("fr-FR");
+}
+
+function normalizeCategory(value){
+  const map = {
+    "SÃ©curitÃ©":"Securite",
+    "Sécurité":"Securite",
+    "QualitÃ©":"Qualite",
+    "Qualité":"Qualite",
+    "Environnement":"Environnement",
+    "Maintenance":"Maintenance",
+    "Securite":"Securite",
+    "Qualite":"Qualite"
+  };
+  return map[value] || value;
+}
+
+function mapDeclaration(d){
+  const closedAt = d.closed_at ? fmtDate(d.closed_at) : null;
+  const createdAt = fmtDate(d.created_at);
+  const apiId = d.id;
+  const displayId = d.reference || String(d.id);
+  const history = (d.history || []).map(h=>({date:fmtDate(h.created_at), action:h.action}));
+  return {
+    apiId,
+    id: displayId,
+    atelier: d.atelier,
+    dateCreation: createdAt,
+    declarant: {
+      anonyme: d.anonymous,
+      nom: d.reporter_name || (d.anonymous ? "Anonyme" : "—"),
+      matricule: d.reporter_matricule || "",
+      fonction: d.reporter_function || "",
+      service: d.reporter_service || ""
+    },
+    categorie: d.category,
+    description: d.description,
+    graviteInitiale: d.initial_gravity,
+    graviteReelle: d.real_gravity,
+    photos: (d.photos || []).map(p=>"/uploads/" + p.filename),
+    localisation: d.location || "",
+    status: d.status,
+    analyse: d.analysis_at ? {
+      typeRisque: d.risk_type || "",
+      causeProbable: d.probable_cause || "",
+      commentaire: d.analysis_comment || "",
+      date: fmtDate(d.analysis_at)
+    } : null,
+    affectation: d.assigned_at ? {
+      service: d.assigned_service || "",
+      responsable: d.assigned_responsible || "",
+      priorite: d.priority || "",
+      slaDate: d.sla_date || "",
+      ressources: d.resources || "",
+      email: d.assigned_email || ""
+    } : null,
+    planification: d.planned_at ? {
+      date: d.planned_date || "",
+      heure: d.planned_time || "",
+      techniciens: d.planned_technicians || "",
+      materiel: d.planned_material || ""
+    } : null,
+    intervention: d.intervention_at ? {
+      actions: d.intervention_actions || "",
+      tempsPasse: String(d.intervention_minutes || 0),
+      difficultes: d.intervention_difficulties || ""
+    } : null,
+    verification: d.is_conform !== null && d.is_conform !== undefined ? {
+      conforme: d.is_conform,
+      commentaire: d.verification_comment || "",
+      date: closedAt || fmtDate(d.updated_at)
+    } : null,
+    cloture: d.closed_at ? {
+      commentaireFinal: d.verification_comment || "",
+      dateCloture: closedAt,
+      delaiReel: computeDelay({dateCreation: createdAt})
+    } : null,
+    historique: history.length ? history : [{date: createdAt, action: "Declaration creee"}]
+  };
+}
+
+function mapNotification(n){
+  const dec = state.declarations.find(d=>d.apiId === n.declaration_id);
+  return {
+    id: n.id,
+    declarationId: dec ? dec.id : String(n.declaration_id),
+    message: n.message,
+    date: fmtDate(n.created_at),
+    read: n.read,
+    audience: n.audience
+  };
+}
+
+async function refreshData(){
+  if(!state.auth.loggedIn || state.role === "declarant") return;
+  try{
+    const stats = await api("/dashboard/stats");
+    state.dashboardStats = stats;
+    if(state.role === "chef_etablissement"){
+      state.declarations = (stats.latest || []).map(mapDeclaration);
+      state.notifications = [];
+      state.tab = "dashboard";
+      return;
+    }
+    const declarations = await api("/declarations");
+    state.declarations = declarations.map(mapDeclaration);
+    const notifications = await api("/notifications").catch(()=>[]);
+    state.notifications = notifications.map(mapNotification);
+  }catch(e){
+    toast(e.message || "Impossible de charger les donnees.");
+  }
+}
+
+loadData = async function(){
+  await refreshData();
+  render();
+};
+
+persist = async function(){};
+
+findDec = function(id){
+  return state.declarations.find(d=>String(d.id)===String(id) || String(d.apiId)===String(id));
+};
+
+isHSERole = function(r){
+  return r==="hse" || r==="chef_technicentre_tmlc" || r==="coordination";
+};
+
+roleLabel = function(r){
+  return {
+    declarant:"Declarant",
+    hse:"Responsable HSE",
+    chef_technicentre_tmlc:"Chef de technicentre TMLC",
+    chef_etablissement:"Chef d'etablissement",
+    coordination:"Responsable Coordination",
+    traitement:"Responsable Traitement"
+  }[r] || r;
+};
+
+loginGateHTML = function(){
+  const selectedRole = state.loginSelectedRole;
+  const roles = [
+    {k:"declarant", icon:"✚", name:"Declarant", desc:"Emettre une declaration"},
+    {k:"hse", icon:"▣", name:"Responsable HSE", desc:"Workflow"},
+    {k:"chef_technicentre_tmlc", icon:"▤", name:"Chef technicentre TMLC", desc:"Workflow"},
+    {k:"chef_etablissement", icon:"▦", name:"Chef etablissement", desc:"Tableau de bord"},
+    {k:"coordination", icon:"◇", name:"Resp. Coordination", desc:"Workflow"},
+    {k:"traitement", icon:"⚙", name:"Resp. Traitement", desc:"Traitement"},
+  ];
+  return `
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand" style="justify-content:center;">
+        <div class="mark">GP</div>
+        <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
+      </div>
+      <div class="login-sub">Selectionnez votre profil pour continuer</div>
+      <div class="role-grid">
+        ${roles.map(r=>`
+          <div class="role-card ${selectedRole===r.k?'sel':''}" data-role="${r.k}">
+            <div class="ric">${r.icon}</div>
+            <div class="rname">${r.name}</div>
+            <div class="rdesc">${r.desc}</div>
+          </div>`).join("")}
+      </div>
+      ${selectedRole==="declarant" ? `
+        <button class="btn" id="btnEnterDeclarant" style="width:100%;">Acceder au formulaire de declaration</button>
+      ` : selectedRole ? `
+        <div class="login-fields">
+          <div class="field"><label>Email</label><input type="text" id="loginUser" placeholder="ex. hse@gesprec.local"></div>
+          <div class="field"><label>Mot de passe</label><input type="password" id="loginPass" placeholder="Mot de passe"></div>
+          ${state.loginForm.error ? `<div class="login-error">${state.loginForm.error}</div>` : ""}
+          <button class="btn" id="btnLogin" style="width:100%;">Se connecter</button>
+        </div>
+      ` : `<div class="login-hint">Choisissez un profil ci-dessus pour continuer.</div>`}
+    </div>
+  </div>`;
+};
+
+bindLoginEvents = function(){
+  document.querySelectorAll(".role-card").forEach(el=>{
+    el.onclick = ()=>{ state.loginSelectedRole = el.dataset.role; state.loginForm.error=""; render(); };
+  });
+  const btnEnterDeclarant = document.getElementById("btnEnterDeclarant");
+  if(btnEnterDeclarant) btnEnterDeclarant.onclick = ()=>{
+    apiToken = "";
+    localStorage.removeItem("gesprec_token");
+    localStorage.removeItem("gesprec_user");
+    state.role = "declarant";
+    state.auth.loggedIn = true;
+    state.tab = "nouvelle";
+    render();
+  };
+  const btnLogin = document.getElementById("btnLogin");
+  if(btnLogin) btnLogin.onclick = async ()=>{
+    const u = (document.getElementById("loginUser").value||"").trim();
+    const p = (document.getElementById("loginPass").value||"").trim();
+    if(!u || !p){ state.loginForm.error = "Veuillez renseigner votre email et votre mot de passe."; render(); return; }
+    try{
+      const body = new URLSearchParams({username:u, password:p});
+      const data = await api("/auth/login", {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body});
+      apiToken = data.access_token;
+      localStorage.setItem("gesprec_token", apiToken);
+      localStorage.setItem("gesprec_user", JSON.stringify(data.user));
+      state.role = data.user.role;
+      state.auth.loggedIn = true;
+      state.loginSelectedRole = data.user.role;
+      state.loginForm.error = "";
+      state.tab = "dashboard";
+      await refreshData();
+      render();
+    }catch(e){
+      state.loginForm.error = e.message || "Connexion impossible.";
+      render();
+    }
+  };
+};
+
+sidebarHTML = function(){
+  const role = state.role;
+  const unread = state.notifications.filter(n=>!n.read && notifVisibleTo(n, role)).length;
+  let items = [{k:"dashboard", label:"Tableau de bord", icon:"▦"}];
+  if(isHSERole(role)){
+    items.push({k:"declarations", label:"Declarations", icon:"☰"});
+    items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
+  } else if(role==="traitement"){
+    items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
+  }
+  return `
+  <div class="sidebar">
+    <div class="brand">
+      <div class="mark">GP</div>
+      <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
+    </div>
+    ${items.map(it=>`
+      <div class="navitem ${state.tab===it.k?'active':''}" data-tab="${it.k}">
+        <span>${it.icon}</span><span>${it.label}</span>
+        ${it.badge?`<span class="badge">${it.badge}</span>`:""}
+      </div>`).join("")}
+    <div class="sidebar-footer">
+      <div class="role-box">Connecte en tant que</div>
+      <div class="current-role">${roleLabel(role)}</div>
+      <div class="logout-btn" id="logoutBtn">Deconnexion</div>
+    </div>
+  </div>`;
+};
+
+tabContentHTML = function(){
+  if(state.role === "chef_etablissement") return dashboardHTML();
+  if(state.tab==="declarations" && isHSERole(state.role)) return kanbanHTML();
+  if(state.tab==="notifications") return notificationsHTML();
+  return dashboardHTML();
+};
+
+kpis = function(){
+  if(state.dashboardStats && state.dashboardStats.totals){
+    const t = state.dashboardStats.totals;
+    const total = t.total || 0;
+    const cloturees = t.closed || 0;
+    const ouvertes = t.open || 0;
+    const critiques = t.critical || 0;
+    const tauxCloture = total ? Math.round(cloturees / total * 100) : 0;
+    return {total, cloturees, ouvertes, critiques, tauxCloture, delaiMoyen:0};
+  }
+  const all = state.declarations;
+  const total = all.length;
+  const cloturees = all.filter(d=>d.status==="cloture").length;
+  const ouvertes = total - cloturees;
+  const critiques = all.filter(d=>d.graviteReelle==="critique" && d.status!=="cloture").length;
+  const tauxCloture = total? Math.round(cloturees/total*100):0;
+  return {total, cloturees, ouvertes, critiques, tauxCloture, delaiMoyen:0};
+};
+
+function statsCount(group, key){
+  return state.dashboardStats && state.dashboardStats[group] ? (state.dashboardStats[group][key] || 0) : null;
+}
+
+drawCharts = function(){
+  if(typeof Chart==="undefined") return;
+  Chart.defaults.color = "#9AA3AD";
+  Chart.defaults.borderColor = "#2C333D";
+  const graviteData = GRAVITES.map(g=>statsCount("by_gravity", g.key) ?? state.declarations.filter(d=>d.graviteReelle===g.key).length);
+  const cg = document.getElementById("chartGravite");
+  if(cg) new Chart(cg, { type:"doughnut", data:{ labels: GRAVITES.map(g=>g.label),
+    datasets:[{ data:graviteData, backgroundColor:["#2E9B6B","#F2B705","#FF6A2B","#E4432B"], borderWidth:0 }]},
+    options:{ plugins:{legend:{position:"bottom", labels:{boxWidth:10, font:{size:11}}}} } });
+
+  const catData = CATEGORIES.map(c=>statsCount("by_category", normalizeCategory(c)) ?? state.declarations.filter(d=>d.categorie===c).length);
+  const cc = document.getElementById("chartCategorie");
+  if(cc) new Chart(cc, { type:"bar", data:{ labels:CATEGORIES,
+    datasets:[{ data:catData, backgroundColor:"#4C8DFF", borderRadius:4 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{ ticks:{precision:0}, grid:{color:"#2C333D"} } } } });
+
+  const statData = STATUS_ORDER.map(s=>statsCount("by_status", s) ?? state.declarations.filter(d=>d.status===s).length);
+  const cs = document.getElementById("chartStatut");
+  if(cs) new Chart(cs, { type:"bar", data:{ labels: STATUS_ORDER.map(s=>STATUS_LABEL[s]),
+    datasets:[{ data:statData, backgroundColor:"#FF6A2B", borderRadius:4 }]},
+    options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{ ticks:{precision:0}, grid:{color:"#2C333D"} }, y:{grid:{display:false}} } } });
+};
+
+async function dataUrlToFile(dataUrl, name){
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], name, {type:blob.type || "image/jpeg"});
+}
+
+async function uploadFormPhotos(apiId, photos){
+  for(let i=0; i<photos.length; i++){
+    if(!String(photos[i]).startsWith("data:")) continue;
+    const file = await dataUrlToFile(photos[i], "photo-" + (i+1) + ".jpg");
+    const body = new FormData();
+    body.append("file", file);
+    await api("/declarations/" + apiId + "/photos", {method:"POST", body});
+  }
+}
+
+submitDeclaration = async function(){
+  const f = state.form;
+  if(!f.description.trim()){ toast("Merci de decrire la situation observee."); return; }
+  try{
+    const payload = {
+      atelier: f.atelier || ATELIERS[0],
+      category: normalizeCategory(f.categorie),
+      description: f.description,
+      gravity: f.gravite,
+      anonymous: f.anonyme,
+      reporter_name: f.anonyme ? "Anonyme" : (f.nom || ""),
+      reporter_matricule: f.matricule || "",
+      reporter_function: f.fonction || "",
+      reporter_service: f.service || "",
+      location: f.localisation || ""
+    };
+    const created = await api("/declarations", {method:"POST", body:JSON.stringify(payload)});
+    if(f.photos.length) await uploadFormPhotos(created.id, f.photos);
+    state.form = emptyForm();
+    if(state.role !== "declarant") await refreshData();
+    render();
+    toast("Declaration " + (created.reference || created.id) + " envoyee.");
+  }catch(e){ toast(e.message || "Envoi impossible."); }
+};
+
+doAnalyse = async function(id, payload){
+  const dec = findDec(id);
+  try{
+    await api("/declarations/" + dec.apiId + "/analyse", {method:"POST", body:JSON.stringify({
+      real_gravity: payload.graviteReelle,
+      risk_type: payload.typeRisque,
+      probable_cause: payload.causeProbable,
+      comment: payload.commentaire
+    })});
+    await refreshData(); render(); toast("Analyse enregistree.");
+  }catch(e){ toast(e.message || "Analyse impossible."); }
+};
+
+doAffectation = async function(id, payload){
+  const dec = findDec(id);
+  try{
+    await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
+      service: payload.service,
+      responsible: payload.responsable,
+      priority: payload.priorite,
+      sla_date: payload.slaDate,
+      resources: payload.ressources,
+      email: payload.email || null
+    })});
+    await refreshData(); render(); toast("Declaration affectee.");
+  }catch(e){ toast(e.message || "Affectation impossible."); }
+};
+
+doPlanification = async function(id, payload){
+  const dec = findDec(id);
+  try{
+    await api("/declarations/" + dec.apiId + "/planification", {method:"POST", body:JSON.stringify({
+      date: payload.date,
+      time: payload.heure,
+      technicians: payload.techniciens,
+      material: payload.materiel
+    })});
+    await refreshData(); render(); toast("Intervention planifiee.");
+  }catch(e){ toast(e.message || "Planification impossible."); }
+};
+
+doIntervention = async function(id, payload){
+  const dec = findDec(id);
+  try{
+    await api("/declarations/" + dec.apiId + "/intervention", {method:"POST", body:JSON.stringify({
+      actions: payload.actions,
+      minutes: Number(payload.tempsPasse || 0),
+      difficulties: payload.difficultes
+    })});
+    await refreshData(); render(); toast("Intervention enregistree.");
+  }catch(e){ toast(e.message || "Intervention impossible."); }
+};
+
+doVerification = async function(id, conforme, commentaire){
+  const dec = findDec(id);
+  try{
+    await api("/declarations/" + dec.apiId + "/verification", {method:"POST", body:JSON.stringify({
+      conform: conforme,
+      comment: commentaire
+    })});
+    await refreshData(); render(); toast(conforme ? "Dossier cloture." : "Retour en planification.");
+  }catch(e){ toast(e.message || "Verification impossible."); }
+};
+
+loadData();
+</script>
+</body>
+</html>

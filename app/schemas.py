@@ -1,0 +1,171 @@
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from app.models import Audience, Category, Gravity, Role, Status
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: "UserOut"
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    full_name: str
+    role: Role
+    is_active: bool
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=2, max_length=255)
+    role: Role
+    password: str = Field(min_length=8, max_length=128)
+
+
+class PhotoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    original_name: str
+    content_type: str
+    created_at: datetime
+
+
+class HistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    actor_id: int | None = None
+    created_at: datetime
+
+
+class DeclarationCreate(BaseModel):
+    atelier: str = Field(min_length=2, max_length=120)
+    category: Category
+    description: str = Field(min_length=5)
+    gravity: Gravity = Gravity.moyen
+    anonymous: bool = False
+    reporter_name: str | None = None
+    reporter_matricule: str | None = None
+    reporter_function: str | None = None
+    reporter_service: str | None = None
+    location: str | None = None
+
+
+class AnalysisIn(BaseModel):
+    real_gravity: Gravity
+    risk_type: str = Field(min_length=2, max_length=255)
+    probable_cause: str | None = None
+    comment: str | None = None
+
+
+class AssignmentIn(BaseModel):
+    service: str = Field(min_length=2, max_length=180)
+    responsible: str = Field(min_length=2, max_length=180)
+    priority: str = "Normale"
+    sla_date: str | None = None
+    resources: str | None = None
+    email: EmailStr | None = None
+
+
+class PlanningIn(BaseModel):
+    date: str
+    time: str
+    technicians: str | None = None
+    material: str | None = None
+
+
+class InterventionIn(BaseModel):
+    actions: str = Field(min_length=3)
+    minutes: int = Field(default=0, ge=0)
+    difficulties: str | None = None
+
+
+class VerificationIn(BaseModel):
+    conform: bool
+    comment: str | None = None
+
+
+class DeclarationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    reference: str
+    atelier: str
+    category: Category
+    description: str
+    initial_gravity: Gravity
+    real_gravity: Gravity
+    status: Status
+    anonymous: bool
+    reporter_name: str | None = None
+    reporter_matricule: str | None = None
+    reporter_function: str | None = None
+    reporter_service: str | None = None
+    location: str | None = None
+
+    risk_type: str | None = None
+    probable_cause: str | None = None
+    analysis_comment: str | None = None
+    analysis_at: datetime | None = None
+
+    assigned_service: str | None = None
+    assigned_responsible: str | None = None
+    priority: str | None = None
+    sla_date: str | None = None
+    resources: str | None = None
+    assigned_email: str | None = None
+    assigned_at: datetime | None = None
+
+    planned_date: str | None = None
+    planned_time: str | None = None
+    planned_technicians: str | None = None
+    planned_material: str | None = None
+    planned_at: datetime | None = None
+
+    intervention_actions: str | None = None
+    intervention_minutes: int | None = None
+    intervention_difficulties: str | None = None
+    intervention_at: datetime | None = None
+
+    verification_comment: str | None = None
+    is_conform: bool | None = None
+    closed_at: datetime | None = None
+
+    created_at: datetime
+    updated_at: datetime
+    photos: list[PhotoOut] = []
+    history: list[HistoryOut] = []
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    declaration_id: int
+    message: str
+    audience: Audience
+    read: bool
+    created_at: datetime
+
+
+class DashboardStats(BaseModel):
+    totals: dict[str, int]
+    by_gravity: dict[str, int]
+    by_category: dict[str, int]
+    by_status: dict[str, int]
+    by_atelier: dict[str, int]
+    latest: list[DeclarationOut]
+
+
+class ErrorOut(BaseModel):
+    detail: str | list[dict[str, Any]]

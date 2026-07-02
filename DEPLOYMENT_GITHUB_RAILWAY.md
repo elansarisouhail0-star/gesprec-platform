@@ -1,0 +1,150 @@
+# Deploiement GitHub + Railway
+
+Ce projet est prepare pour etre deploye comme un seul service Railway:
+
+- `/` sert le frontend HTML
+- les routes API FastAPI restent sur le meme domaine
+- PostgreSQL Railway stocke les donnees
+- le dossier `/app/uploads` stocke les photos
+
+## 1. Tester en local
+
+```powershell
+cd C:\Users\PC\Documents\Codex\2026-07-02\do\outputs\gesprec-backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Ouvrir:
+
+```text
+http://localhost:8000
+http://localhost:8000/docs
+```
+
+## 2. Creer le depot GitHub
+
+Important: ne lance pas les commandes depuis `C:\Users\PC`. Ta capture montre que ce dossier contient deja un ancien depot Git lie a `maintenance-4.0-app`. Il faut d'abord entrer dans le dossier de cette plateforme.
+
+Dans PowerShell:
+
+```powershell
+cd "C:\Users\PC\Documents\Codex\2026-07-02\do\outputs\gesprec-backend"
+git init
+git rev-parse --show-toplevel
+```
+
+La commande doit afficher:
+
+```text
+C:/Users/PC/Documents/Codex/2026-07-02/do/outputs/gesprec-backend
+```
+
+Ensuite, cree un nouveau depot GitHub vide, sans README, sans `.gitignore`, sans licence. Exemple de nom: `gesprec-platform`.
+
+Puis:
+
+```powershell
+git add .
+git commit -m "Initial Gesprec platform"
+git branch -M main
+git remote add origin https://github.com/VOTRE_COMPTE/gesprec-platform.git
+git push -u origin main
+```
+
+Le fichier `.gitignore` exclut deja `.env`, `.venv`, la base SQLite locale et les uploads.
+
+Si Git repond `remote origin already exists`, tu n'es probablement pas dans le bon dossier ou tu as reutilise un depot existant. Verifie avec:
+
+```powershell
+git rev-parse --show-toplevel
+git remote -v
+```
+
+Si le depot GitHub contient deja un README ou des commits, le push peut etre rejete avec `fetch first`. Le plus simple pour ce projet est d'utiliser un depot GitHub vide.
+
+## 3. Creer le projet Railway
+
+1. Aller sur Railway.
+2. Creer un nouveau projet.
+3. Choisir `Deploy from GitHub repo`.
+4. Selectionner le depot `gesprec-platform`.
+5. Railway detectera le `Dockerfile`.
+6. Ajouter un service PostgreSQL dans le meme projet.
+
+## 4. Variables Railway
+
+Dans le service web Railway, ajouter:
+
+```text
+ENV=production
+APP_NAME=Gesprec API
+JWT_SECRET=remplacer_par_un_secret_long_et_unique
+JWT_EXPIRES_MINUTES=480
+SEED_DEFAULT_USERS=true
+UPLOAD_DIR=/app/uploads
+MAX_UPLOAD_MB=8
+```
+
+Pour `DATABASE_URL`, utiliser la variable fournie par le PostgreSQL Railway. Le backend accepte les formats Railway `postgres://...` et `postgresql://...`.
+
+Comme le frontend et l'API sont servis par le meme domaine Railway, `CORS_ORIGINS` n'est pas indispensable. Si tu separes plus tard frontend et backend, ajoute le domaine frontend dans `CORS_ORIGINS`.
+
+## 5. Domaine public
+
+Dans Railway:
+
+1. Ouvrir le service web.
+2. Aller dans `Settings` puis `Networking`.
+3. Generer un domaine Railway.
+
+Tu obtiendras une URL du type:
+
+```text
+https://gesprec-platform-production.up.railway.app
+```
+
+Cette URL donnera acces a la plateforme depuis plusieurs appareils.
+
+## 6. Photos et fichiers
+
+Pour que les photos restent apres redeploiement, ajouter un volume Railway monte sur:
+
+```text
+/app/uploads
+```
+
+Sans volume, les photos peuvent etre perdues lors d'un redeploiement. Pour une exploitation plus robuste, utiliser ensuite un stockage externe comme S3, Cloudinary ou Azure Blob.
+
+## 7. Comptes de depart
+
+Au premier lancement, le backend cree:
+
+```text
+hse@gesprec.local              Hse12345!
+chef@gesprec.local             Chef12345!
+etablissement@gesprec.local    Etab12345!
+coordination@gesprec.local     Coord12345!
+traitement@gesprec.local       Trait12345!
+```
+
+Apres creation des vrais comptes, mettre:
+
+```text
+SEED_DEFAULT_USERS=false
+```
+
+Puis redeployer.
+
+## 8. Verification apres deploiement
+
+Tester:
+
+```text
+https://VOTRE_DOMAINE_RAILWAY/health
+https://VOTRE_DOMAINE_RAILWAY/docs
+https://VOTRE_DOMAINE_RAILWAY/
+```
+
+Le declarant utilise `/` sans authentification.
+
+Les profils internes utilisent leur email et mot de passe.
