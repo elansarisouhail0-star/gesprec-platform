@@ -29,6 +29,7 @@ def seed_default_users(db: Session) -> None:
             exists.role = role
             exists.full_name = full_name
             exists.is_active = True
+            exists.hashed_password = hash_password(password)
             continue
         db.add(
             User(
