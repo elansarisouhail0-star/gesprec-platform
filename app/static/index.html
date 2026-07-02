@@ -1049,10 +1049,13 @@ async function api(path, options = {}){
   const res = await fetch(API_BASE + path, {...options, headers});
   if(!res.ok){
     let msg = "Erreur API";
+    const raw = await res.text();
     try{
-      const err = await res.json();
+      const err = JSON.parse(raw);
       msg = err.detail || JSON.stringify(err);
-    }catch(e){ msg = await res.text(); }
+    }catch(e){
+      msg = raw || msg;
+    }
     throw new Error(msg);
   }
   return res.status === 204 ? null : res.json();
