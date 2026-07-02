@@ -1031,6 +1031,12 @@ function bindEvents(){
 const API_BASE = window.GESPREC_API_BASE || "";
 let apiToken = localStorage.getItem("gesprec_token") || "";
 const savedUser = localStorage.getItem("gesprec_user");
+const urlAtelier = new URLSearchParams(window.location.search).get("atelier");
+if(urlAtelier && ATELIERS.includes(urlAtelier)){
+  state.atelierScanne = urlAtelier;
+  state.form.atelier = urlAtelier;
+  state.tab = "nouvelle";
+}
 if(apiToken && savedUser){
   try{
     const u = JSON.parse(savedUser);
@@ -1172,6 +1178,9 @@ async function refreshData(){
     state.declarations = declarations.map(mapDeclaration);
     const notifications = await api("/notifications").catch(()=>[]);
     state.notifications = notifications.map(mapNotification);
+    if(state.role === "hse"){
+      state.users = await api("/auth/users").catch(()=>[]);
+    }
   }catch(e){
     toast(e.message || "Impossible de charger les donnees.");
   }
@@ -1289,8 +1298,13 @@ sidebarHTML = function(){
   if(isHSERole(role)){
     items.push({k:"declarations", label:"Declarations", icon:"☰"});
     items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
+    items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
+    if(role==="hse") items.push({k:"utilisateurs", label:"Utilisateurs", icon:"◉"});
   } else if(role==="traitement"){
     items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
+    items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
+  } else if(role==="chef_etablissement"){
+    items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
   }
   return `
   <div class="sidebar">
@@ -1311,11 +1325,164 @@ sidebarHTML = function(){
   </div>`;
 };
 
+topbarHTML = function(){
+  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle declaration", declarations:"Declarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs"};
+  return `
+  <div class="topbar">
+    <h1>${titles[state.tab] || "Gesprec"}</h1>
+    ${state.tab!=="nouvelle" ? `
+    <div class="atelier-pill"><span class="qr-dot"></span> QR scanne : <b>&nbsp;${state.atelierScanne}</b>
+      <select id="atelierSelect" style="margin-left:8px;background:transparent;border:none;color:var(--text-dim);font-size:12px;">
+        ${ATELIERS.map(a=>`<option ${a===state.atelierScanne?'selected':''}>${a}</option>`).join("")}
+      </select>
+    </div>` : ""}
+  </div>`;
+};
+
+function qrCodesHTML(){
+  return `<div class="panel">
+    <div class="section-header">
+      <div style="font-size:12.5px;color:var(--text-dim);">Imprimez ces QR codes et placez-les dans chaque atelier.</div>
+      <a class="btn small" href="/qr/ateliers" target="_blank" style="text-decoration:none;">Ouvrir la page imprimable</a>
+    </div>
+    <div class="kanban" style="grid-template-columns:repeat(3,1fr);">
+      ${ATELIERS.map(a=>`
+        <div class="panel" style="text-align:center;">
+          <h3>${a}</h3>
+          <img src="/qr/atelier.svg?name=${encodeURIComponent(a)}" style="width:180px;height:180px;background:#fff;padding:8px;border-radius:6px;">
+          <div style="font-size:11px;color:var(--text-dim);word-break:break-all;margin-top:8px;">${location.origin}/?atelier=${encodeURIComponent(a)}</div>
+        </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function usersHTML(){
+  const users = state.users || [];
+  const roles = [
+    ["hse","Responsable HSE"],
+    ["chef_technicentre_tmlc","Chef de technicentre TMLC"],
+    ["chef_etablissement","Chef d'etablissement"],
+    ["coordination","Responsable Coordination"],
+    ["traitement","Responsable Traitement"]
+  ];
+  return `<div class="panel">
+    <div class="section-title">Creer / modifier un utilisateur</div>
+    <input type="hidden" id="u_id">
+    <div class="row2">
+      <div class="field"><label>Email / identifiant</label><input type="text" id="u_email" placeholder="ex. traitement1@gesprec.local"></div>
+      <div class="field"><label>Nom complet</label><input type="text" id="u_name" placeholder="Nom du responsable"></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Role</label><select id="u_role">${roles.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join("")}</select></div>
+      <div class="field"><label>Mot de passe</label><input type="text" id="u_password" placeholder="Nouveau mot de passe"></div>
+      <div class="field"><label>Actif</label><select id="u_active"><option value="true">Actif</option><option value="false">Inactif</option></select></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+      <button class="btn small" id="btnSaveUser">Enregistrer</button>
+      <button class="btn secondary small" id="btnClearUser">Nouveau</button>
+    </div>
+
+    <div class="section-title">Utilisateurs</div>
+    ${users.map(u=>`
+      <div class="notif-row">
+        <div>
+          <div style="font-size:13.5px;font-weight:600;">${u.full_name}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${u.email} - ${roleLabel(u.role)} - ${u.is_active ? "Actif" : "Inactif"}</div>
+        </div>
+        <button class="btn secondary small" data-edit-user="${u.id}">Modifier</button>
+      </div>`).join("") || `<div class="empty">Aucun utilisateur.</div>`}
+
+    <div class="section-title">Changer mon mot de passe</div>
+    <div class="row2">
+      <div class="field"><label>Mot de passe actuel</label><input type="password" id="my_current_password"></div>
+      <div class="field"><label>Nouveau mot de passe</label><input type="password" id="my_new_password"></div>
+    </div>
+    <button class="btn small" id="btnChangeMyPassword">Changer mon mot de passe</button>
+
+    <div class="section-title">Test email SMTP</div>
+    <div class="row2">
+      <div class="field"><label>Email destinataire</label><input type="text" id="test_email_to" placeholder="ex. nom@entreprise.com"></div>
+      <div class="field" style="display:flex;align-items:end;"><button class="btn small" id="btnTestEmail">Envoyer test</button></div>
+    </div>
+  </div>`;
+}
+
 tabContentHTML = function(){
+  if(state.tab==="qrcodes") return qrCodesHTML();
+  if(state.tab==="utilisateurs" && state.role==="hse") return usersHTML();
   if(state.role === "chef_etablissement") return dashboardHTML();
   if(state.tab==="declarations" && isHSERole(state.role)) return kanbanHTML();
   if(state.tab==="notifications") return notificationsHTML();
   return dashboardHTML();
+};
+
+const originalBindEvents = bindEvents;
+bindEvents = function(){
+  originalBindEvents();
+  const logoutBtn2 = document.getElementById("logoutBtn");
+  if(logoutBtn2) logoutBtn2.onclick = ()=>{
+    apiToken = "";
+    localStorage.removeItem("gesprec_token");
+    localStorage.removeItem("gesprec_user");
+    state.auth.loggedIn = false;
+    state.role = null;
+    state.loginSelectedRole = null;
+    state.loginForm.error = "";
+    state.tab = "dashboard";
+    state.openId = null;
+    render();
+  };
+  document.querySelectorAll("[data-edit-user]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const u = (state.users || []).find(x=>String(x.id)===String(btn.dataset.editUser));
+      if(!u) return;
+      document.getElementById("u_id").value = u.id;
+      document.getElementById("u_email").value = u.email;
+      document.getElementById("u_name").value = u.full_name;
+      document.getElementById("u_role").value = u.role;
+      document.getElementById("u_active").value = String(u.is_active);
+      document.getElementById("u_password").value = "";
+    };
+  });
+  const clearUser = document.getElementById("btnClearUser");
+  if(clearUser) clearUser.onclick = ()=>{
+    ["u_id","u_email","u_name","u_password"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+    const active = document.getElementById("u_active"); if(active) active.value = "true";
+  };
+  const saveUser = document.getElementById("btnSaveUser");
+  if(saveUser) saveUser.onclick = async ()=>{
+    const id = document.getElementById("u_id").value;
+    const payload = {
+      email: document.getElementById("u_email").value.trim(),
+      full_name: document.getElementById("u_name").value.trim(),
+      role: document.getElementById("u_role").value,
+      is_active: document.getElementById("u_active").value === "true"
+    };
+    const password = document.getElementById("u_password").value;
+    if(password) payload.password = password;
+    try{
+      if(id) await api("/auth/users/" + id, {method:"PATCH", body:JSON.stringify(payload)});
+      else await api("/auth/users", {method:"POST", body:JSON.stringify({...payload, password: password || "ChangeMe123!"})});
+      await refreshData(); render(); toast("Utilisateur enregistre.");
+    }catch(e){ toast(e.message || "Enregistrement impossible."); }
+  };
+  const changeMine = document.getElementById("btnChangeMyPassword");
+  if(changeMine) changeMine.onclick = async ()=>{
+    try{
+      await api("/auth/change-password", {method:"POST", body:JSON.stringify({
+        current_password: document.getElementById("my_current_password").value,
+        new_password: document.getElementById("my_new_password").value
+      })});
+      toast("Mot de passe change.");
+    }catch(e){ toast(e.message || "Changement impossible."); }
+  };
+  const testEmail = document.getElementById("btnTestEmail");
+  if(testEmail) testEmail.onclick = async ()=>{
+    try{
+      const r = await api("/system/email-test", {method:"POST", body:JSON.stringify({to_email: document.getElementById("test_email_to").value.trim()})});
+      toast(r.sent ? "Email test envoye." : "SMTP non configure.");
+    }catch(e){ toast(e.message || "Test email impossible."); }
+  };
 };
 
 kpis = function(){

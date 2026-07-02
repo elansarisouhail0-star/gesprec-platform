@@ -10,7 +10,10 @@ DEFAULT_USERS = [
     ("chef@gesprec.local", "Chef de technicentre TMLC", Role.chef_technicentre_tmlc, "Chef12345!"),
     ("etablissement@gesprec.local", "Chef d'etablissement", Role.chef_etablissement, "Etab12345!"),
     ("coordination@gesprec.local", "Responsable Coordination", Role.coordination, "Coord12345!"),
-    ("traitement@gesprec.local", "Responsable Traitement", Role.traitement, "Trait12345!"),
+    ("traitement@gesprec.local", "Responsable Traitement principal", Role.traitement, "Trait12345!"),
+    ("traitement1@gesprec.local", "Responsable Traitement 1", Role.traitement, "Trait112345!"),
+    ("traitement2@gesprec.local", "Responsable Traitement 2", Role.traitement, "Trait212345!"),
+    ("traitement3@gesprec.local", "Responsable Traitement 3", Role.traitement, "Trait312345!"),
 ]
 
 

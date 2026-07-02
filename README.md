@@ -55,7 +55,10 @@ docker compose up --build
 | Chef de technicentre TMLC | chef@gesprec.local | Chef12345! |
 | Chef d'etablissement | etablissement@gesprec.local | Etab12345! |
 | Coordination | coordination@gesprec.local | Coord12345! |
-| Traitement | traitement@gesprec.local | Trait12345! |
+| Traitement principal | traitement@gesprec.local | Trait12345! |
+| Traitement 1 | traitement1@gesprec.local | Trait112345! |
+| Traitement 2 | traitement2@gesprec.local | Trait212345! |
+| Traitement 3 | traitement3@gesprec.local | Trait312345! |
 
 Change ces comptes avant tout deploiement reel. Aucun compte declarant n'est cree: le declarant depose une declaration sans authentification.
 
@@ -64,6 +67,10 @@ Change ces comptes avant tout deploiement reel. Aucun compte declarant n'est cre
 | Methode | Route | Role |
 | --- | --- | --- |
 | POST | `/auth/login` | public |
+| GET | `/auth/users` | HSE |
+| POST | `/auth/users` | HSE |
+| PATCH | `/auth/users/{id}` | HSE |
+| POST | `/auth/change-password` | connecte |
 | POST | `/declarations` | public, sans authentification declarant |
 | GET | `/declarations` | HSE, chef technicentre TMLC, coordination, traitement |
 | GET | `/declarations/{id}` | HSE, chef technicentre TMLC, coordination, traitement |
@@ -76,6 +83,10 @@ Change ces comptes avant tout deploiement reel. Aucun compte declarant n'est cre
 | GET | `/notifications` | connecte |
 | POST | `/notifications/{id}/read` | connecte |
 | GET | `/dashboard/stats` | HSE, chef technicentre TMLC, coordination, traitement, chef d'etablissement |
+| GET | `/qr/ateliers` | public |
+| GET | `/qr/atelier.svg?name=Atelier%20HITACHI` | public |
+| GET | `/system/email-status` | HSE |
+| POST | `/system/email-test` | HSE |
 
 Le Chef d'etablissement est volontairement limite au dashboard. Il ne peut pas lister, ouvrir, modifier ou traiter les declarations.
 
@@ -154,6 +165,31 @@ Ensuite:
 - Sauvegarder PostgreSQL et le dossier uploads.
 - Ajouter Alembic avant la premiere evolution de schema.
 - Ajouter un service email pour les deadlines SLA.
+
+## QR codes ateliers
+
+Page imprimable:
+
+```text
+http://localhost:8000/qr/ateliers
+```
+
+Chaque QR ouvre le formulaire declarant avec l'atelier deja selectionne.
+
+## Emails SMTP
+
+L'envoi email est fonctionnel uniquement si ces variables sont configurees:
+
+```text
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM=
+SMTP_TLS=true
+```
+
+Sans SMTP, l'application conserve l'affectation mais indique dans l'historique que l'email n'a pas ete envoye.
 
 ## Deploiement GitHub + Railway
 

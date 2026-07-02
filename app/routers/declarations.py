@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.dependencies import get_optional_user, require_hse_group, require_roles
+from app.emailer import send_email
 from app.models import Audience, Category, Declaration, Gravity, Role, Status, User, utcnow
 from app.schemas import (
     AnalysisIn,
@@ -146,6 +147,27 @@ def assign_declaration(
     declaration.status = Status.affecte
     add_history(db, declaration, f"Affecte au service {payload.service} - responsable: {payload.responsible}", user)
     add_notification(db, declaration, f"Declaration {declaration.reference} affectee a {payload.service}", Audience.all)
+    if payload.email:
+        try:
+            sent = send_email(
+                str(payload.email),
+                f"Deadline traitement - Declaration {declaration.reference}",
+                (
+                    "Bonjour,\n\n"
+                    "Une declaration Gesprec vous a ete affectee.\n\n"
+                    f"Reference: {declaration.reference}\n"
+                    f"Atelier: {declaration.atelier}\n"
+                    f"Gravite: {declaration.real_gravity}\n"
+                    f"Service: {payload.service}\n"
+                    f"Responsable: {payload.responsible}\n"
+                    f"Priorite: {payload.priority}\n"
+                    f"Date limite SLA: {payload.sla_date or '-'}\n\n"
+                    "Merci de planifier et realiser le traitement dans les delais.\n"
+                ),
+            )
+            add_history(db, declaration, "Email deadline envoye" if sent else "Email deadline non envoye - SMTP non configure", user)
+        except Exception as exc:
+            add_history(db, declaration, f"Echec envoi email deadline: {exc}", user)
     db.commit()
     return load_declaration(db, declaration_id)
 

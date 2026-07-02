@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
-from app.routers import auth, dashboard, declarations, notifications, uploads
+from app.routers import auth, dashboard, declarations, notifications, qr, system, uploads
 from app.seed import seed_default_users
 
 
@@ -48,6 +48,8 @@ app.include_router(declarations.router)
 app.include_router(uploads.router)
 app.include_router(notifications.router)
 app.include_router(dashboard.router)
+app.include_router(qr.router)
+app.include_router(system.router)
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"

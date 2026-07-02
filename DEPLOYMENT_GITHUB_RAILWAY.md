@@ -83,6 +83,13 @@ JWT_EXPIRES_MINUTES=480
 SEED_DEFAULT_USERS=true
 UPLOAD_DIR=/app/uploads
 MAX_UPLOAD_MB=8
+PUBLIC_BASE_URL=https://votre-domaine-render.onrender.com
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM=
+SMTP_TLS=true
 ```
 
 Pour `DATABASE_URL`, utiliser la variable fournie par le PostgreSQL Railway. Le backend accepte les formats Railway `postgres://...` et `postgresql://...`.
@@ -134,6 +141,29 @@ SEED_DEFAULT_USERS=false
 ```
 
 Puis redeployer.
+
+## 7 bis. QR codes et email
+
+Les QR codes sont disponibles ici:
+
+```text
+https://VOTRE_DOMAINE_RENDER/qr/ateliers
+```
+
+Pour l'envoi d'emails, il faut un vrai compte SMTP. Par exemple le SMTP de votre entreprise, Gmail avec mot de passe d'application, Brevo, Mailgun ou SendGrid.
+
+Variables a renseigner:
+
+```text
+SMTP_HOST=smtp.votre-fournisseur.com
+SMTP_PORT=587
+SMTP_USERNAME=votre_login
+SMTP_PASSWORD=votre_mot_de_passe_smtp
+SMTP_FROM=gesprec@votre-domaine.com
+SMTP_TLS=true
+```
+
+Le HSE peut tester l'envoi depuis l'onglet `Utilisateurs`.
 
 ## 8. Verification apres deploiement
 

@@ -24,6 +24,13 @@ class Settings:
     upload_dir: str = os.getenv("UPLOAD_DIR", "./uploads")
     max_upload_mb: int = int(os.getenv("MAX_UPLOAD_MB", "8"))
     seed_default_users: bool = os.getenv("SEED_DEFAULT_USERS", "true").lower() == "true"
+    public_base_url: str = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+    smtp_host: str = os.getenv("SMTP_HOST", "")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_username: str = os.getenv("SMTP_USERNAME", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    smtp_from: str = os.getenv("SMTP_FROM", "gesprec@tmlc.local")
+    smtp_tls: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
 
 
 @lru_cache
