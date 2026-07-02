@@ -103,6 +103,8 @@ class Declaration(Base):
 
     intervention_actions: Mapped[str | None] = mapped_column(Text, nullable=True)
     intervention_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    intervention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    intervention_date: Mapped[str | None] = mapped_column(String(80), nullable=True)
     intervention_difficulties: Mapped[str | None] = mapped_column(Text, nullable=True)
     intervention_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     intervention_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

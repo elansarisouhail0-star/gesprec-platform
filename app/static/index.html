@@ -40,6 +40,7 @@
   .brand{ display:flex; align-items:center; gap:8px; margin-bottom:26px; padding:0 6px; white-space:nowrap; }
   .brand .mark{ width:30px; height:30px; border-radius:6px; background:linear-gradient(135deg,var(--orange),var(--amber)); flex-shrink:0;
     display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
+  .brand .brand-logo{ width:54px; height:24px; object-fit:contain; flex-shrink:0; border-radius:4px; background:#f6f1e8; }
   .brand .name{ font-family:var(--display); font-weight:700; font-size:19px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; }
   .brand .sub{ font-size:10px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; }
 
@@ -116,9 +117,13 @@
   .form-panel{ max-width:760px; }
   .field{ margin-bottom:16px; }
   .field label{ display:block; font-size:12.5px; color:var(--text-dim); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px;}
-  .field input[type=text], .field input[type=number], .field textarea, .field select{
+  .field input[type=text], .field input[type=number], .field input[type=date], .field textarea, .field select{
     width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); padding:10px 12px;
     border-radius:7px; font-family:var(--body); font-size:14px;
+  }
+  .field input[type=file]{
+    width:100%; background:var(--panel-2); border:1px dashed var(--line); color:var(--text-dim); padding:10px 12px;
+    border-radius:7px; font-family:var(--body); font-size:13px;
   }
   .field textarea{ min-height:90px; resize:vertical; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -229,6 +234,28 @@ const STATUS_LABEL = {
   nouvelle:"Nouvelle", analyse:"En analyse", affecte:"Affecté", planifie:"Planifié",
   realisee:"Intervention réalisée", cloture:"Clôturé"
 };
+
+function brandMarkHTML(){
+  return `<img class="brand-logo" src="/assets/oncf-logo.svg" alt="ONCF">`;
+}
+
+function calendarDateValue(value){
+  if(!value || value === "â€”" || value === "—" || value === "-") return "";
+  const text = String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(text);
+  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0,10);
+}
+
+function daysBetween(start, end){
+  const s = calendarDateValue(start);
+  const e = calendarDateValue(end);
+  if(!s || !e) return 0;
+  const ms = new Date(e + "T00:00:00") - new Date(s + "T00:00:00");
+  return Math.max(0, Math.round(ms / 86400000));
+}
 
 let state = {
   auth: { loggedIn:false },    // authentification requise pour tous sauf déclarant
@@ -501,7 +528,7 @@ function loginGateHTML(){
   <div class="login-wrap">
     <div class="login-card">
       <div class="brand" style="justify-content:center;">
-        <div class="mark">GP</div>
+        ${brandMarkHTML()}
         <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
       </div>
       <div class="login-sub">Sélectionnez votre profil pour continuer</div>
@@ -531,7 +558,7 @@ function soloTopHTML(){
   return `
   <div class="solo-top">
     <div class="brand">
-      <div class="mark">GP</div>
+      ${brandMarkHTML()}
       <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
     </div>
     <div class="solo-logout" id="logoutBtn">Changer de profil</div>
@@ -583,7 +610,7 @@ function sidebarHTML(){
   return `
   <div class="sidebar">
     <div class="brand">
-      <div class="mark">GP</div>
+      ${brandMarkHTML()}
       <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
     </div>
     ${items.map(it=>`
@@ -869,7 +896,7 @@ function actionBlockHTML(dec){
     <div class="row2">
       <div class="field"><label>Priorité</label>
         <select id="af_prio"><option>Basse</option><option selected>Normale</option><option>Haute</option><option>Urgente</option></select></div>
-      <div class="field"><label>Date limite (SLA)</label><input type="text" id="af_sla" placeholder="jj/mm/aaaa"></div>
+      <div class="field"><label>Date limite (SLA)</label><input type="date" id="af_sla"></div>
     </div>
     <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 techniciens, pièce détachée X"></div>
     <div class="field"><label>Email du responsable de traitement</label><input type="text" id="af_email" placeholder="Ex. nom.prenom@entreprise.com"></div>
@@ -888,13 +915,15 @@ function actionBlockHTML(dec){
     <button class="btn" id="btnPlanifier" data-id="${dec.id}">Planifier</button>`;
   }
   if(role==="traitement" && dec.status==="planifie"){
+    const minDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
     return `
     <div class="section-title">Réalisation des actions correctives</div>
     <div class="field"><label>Actions réalisées</label><textarea id="i_actions" placeholder="Décrire les travaux effectués"></textarea></div>
     <div class="row2">
-      <div class="field"><label>Temps passé (min)</label><input type="number" id="i_temps" placeholder="60"></div>
+      <div class="field"><label>Date de réalisation</label><input type="date" id="i_date" ${minDate?`min="${minDate}"`:''}></div>
       <div class="field"><label>Difficultés rencontrées</label><input type="text" id="i_diff" placeholder="Optionnel"></div>
     </div>
+    <div class="field"><label>Image intervention réalisée</label><input type="file" id="i_photos" accept="image/*" multiple></div>
     <button class="btn" id="btnIntervention" data-id="${dec.id}">Enregistrer l'intervention</button>`;
   }
   // HSE (et rôles équivalents): vérification
@@ -1015,10 +1044,23 @@ function bindEvents(){
   };
   const btnIntervention = document.getElementById("btnIntervention");
   if(btnIntervention) btnIntervention.onclick = ()=>{
+    const dec = findDec(btnIntervention.dataset.id);
+    const interventionDate = document.getElementById("i_date").value;
+    const minDate = calendarDateValue(dec && dec.affectation && dec.affectation.slaDate);
+    if(!interventionDate){
+      toast("Merci de choisir la date de realisation.");
+      return;
+    }
+    if(minDate && interventionDate && interventionDate < minDate){
+      toast("La date de realisation ne peut pas etre inferieure a la date d'affectation.");
+      return;
+    }
     doIntervention(btnIntervention.dataset.id, {
       actions: document.getElementById("i_actions").value,
-      tempsPasse: document.getElementById("i_temps").value || "0",
-      difficultes: document.getElementById("i_diff").value
+      interventionDate,
+      tempsJours: daysBetween(minDate, interventionDate),
+      difficultes: document.getElementById("i_diff").value,
+      photos: Array.from((document.getElementById("i_photos") || {}).files || [])
     });
   };
   const btnConforme = document.getElementById("btnConforme");
@@ -1134,7 +1176,9 @@ function mapDeclaration(d){
     } : null,
     intervention: d.intervention_at ? {
       actions: d.intervention_actions || "",
-      tempsPasse: String(d.intervention_minutes || 0),
+      tempsPasse: String(d.intervention_days ?? d.intervention_minutes ?? 0),
+      tempsJours: d.intervention_days ?? d.intervention_minutes ?? 0,
+      interventionDate: d.intervention_date || "",
       difficultes: d.intervention_difficulties || ""
     } : null,
     verification: d.is_conform !== null && d.is_conform !== undefined ? {
@@ -1226,7 +1270,7 @@ loginGateHTML = function(){
   <div class="login-wrap">
     <div class="login-card">
       <div class="brand" style="justify-content:center;">
-        <div class="mark">GP</div>
+        ${brandMarkHTML()}
         <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
       </div>
       <div class="login-sub">Selectionnez votre profil pour continuer</div>
@@ -1309,7 +1353,7 @@ sidebarHTML = function(){
   return `
   <div class="sidebar">
     <div class="brand">
-      <div class="mark">GP</div>
+      ${brandMarkHTML()}
       <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
     </div>
     ${items.map(it=>`
@@ -1547,6 +1591,14 @@ async function uploadFormPhotos(apiId, photos){
   }
 }
 
+async function uploadPhotoFiles(apiId, files){
+  for(let i=0; i<files.length; i++){
+    const body = new FormData();
+    body.append("file", files[i]);
+    await api("/declarations/" + apiId + "/photos", {method:"POST", body});
+  }
+}
+
 submitDeclaration = async function(){
   const f = state.form;
   if(!f.description.trim()){ toast("Merci de decrire la situation observee."); return; }
@@ -1616,11 +1668,21 @@ doPlanification = async function(id, payload){
 doIntervention = async function(id, payload){
   const dec = findDec(id);
   try{
+    const minDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    if(minDate && payload.interventionDate && payload.interventionDate < minDate){
+      toast("La date de realisation ne peut pas etre inferieure a la date d'affectation.");
+      return;
+    }
     await api("/declarations/" + dec.apiId + "/intervention", {method:"POST", body:JSON.stringify({
       actions: payload.actions,
-      minutes: Number(payload.tempsPasse || 0),
+      minutes: 0,
+      days: Number(payload.tempsJours || daysBetween(minDate, payload.interventionDate)),
+      intervention_date: payload.interventionDate,
       difficulties: payload.difficultes
     })});
+    if(payload.photos && payload.photos.length){
+      await uploadPhotoFiles(dec.apiId, payload.photos);
+    }
     await refreshData(); render(); toast("Intervention enregistree.");
   }catch(e){ toast(e.message || "Intervention impossible."); }
 };

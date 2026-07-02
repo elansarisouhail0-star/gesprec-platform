@@ -100,6 +100,8 @@ class PlanningIn(BaseModel):
 class InterventionIn(BaseModel):
     actions: str = Field(min_length=3)
     minutes: int = Field(default=0, ge=0)
+    days: int = Field(default=0, ge=0)
+    intervention_date: str = Field(min_length=10, max_length=80)
     difficulties: str | None = None
 
 
@@ -147,6 +149,8 @@ class DeclarationOut(BaseModel):
 
     intervention_actions: str | None = None
     intervention_minutes: int | None = None
+    intervention_days: int | None = None
+    intervention_date: str | None = None
     intervention_difficulties: str | None = None
     intervention_at: datetime | None = None
 

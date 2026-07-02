@@ -12,6 +12,8 @@ Il couvre:
 - notifications par audience
 - historique/audit par declaration
 - upload de photos
+- ajout d'images pendant l'intervention realisee
+- date de realisation en jours, saisie au calendrier et controlee par rapport a la date d'affectation
 - statistiques dashboard
 - PostgreSQL avec Docker, SQLite possible en local
 
@@ -89,6 +91,8 @@ Change ces comptes avant tout deploiement reel. Aucun compte declarant n'est cre
 | POST | `/system/email-test` | HSE |
 
 Le Chef d'etablissement est volontairement limite au dashboard. Il ne peut pas lister, ouvrir, modifier ou traiter les declarations.
+
+L'intervention realisee demande maintenant une date de realisation au calendrier. Cette date ne peut pas etre inferieure a la date limite saisie dans l'affectation. Les images ajoutees dans cette rubrique sont rattachees a la meme declaration.
 
 ## Exemple login
 

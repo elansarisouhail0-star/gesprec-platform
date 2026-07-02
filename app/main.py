@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect, text
 
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
@@ -27,9 +28,25 @@ app.add_middleware(
 )
 
 
+def apply_lightweight_migrations() -> None:
+    inspector = inspect(engine)
+    if "declarations" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("declarations")}
+    additions = {
+        "intervention_days": "INTEGER",
+        "intervention_date": "VARCHAR(80)",
+    }
+    with engine.begin() as conn:
+        for name, sql_type in additions.items():
+            if name not in columns:
+                conn.execute(text(f"ALTER TABLE declarations ADD COLUMN {name} {sql_type}"))
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    apply_lightweight_migrations()
     if settings.seed_default_users:
         db = SessionLocal()
         try:

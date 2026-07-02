@@ -83,7 +83,7 @@ JWT_EXPIRES_MINUTES=480
 SEED_DEFAULT_USERS=true
 UPLOAD_DIR=/app/uploads
 MAX_UPLOAD_MB=8
-PUBLIC_BASE_URL=https://votre-domaine-render.onrender.com
+PUBLIC_BASE_URL=https://votre-domaine-railway.up.railway.app
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USERNAME=
@@ -147,7 +147,7 @@ Puis redeployer.
 Les QR codes sont disponibles ici:
 
 ```text
-https://VOTRE_DOMAINE_RENDER/qr/ateliers
+https://VOTRE_DOMAINE_RAILWAY/qr/ateliers
 ```
 
 Pour l'envoi d'emails, il faut un vrai compte SMTP. Par exemple le SMTP de votre entreprise, Gmail avec mot de passe d'application, Brevo, Mailgun ou SendGrid.

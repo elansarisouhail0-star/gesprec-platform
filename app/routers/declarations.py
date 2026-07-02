@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
@@ -18,6 +20,17 @@ from app.schemas import (
 from app.services import add_history, add_notification, next_reference
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
+
+
+def parse_calendar_date(value: str | None) -> datetime | None:
+    if not value or value in {"-", "—"}:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def load_declaration(db: Session, declaration_id: int) -> Declaration:
@@ -203,8 +216,19 @@ def complete_intervention(
 ) -> Declaration:
     declaration = load_declaration(db, declaration_id)
     assert_status(declaration, Status.planifie)
+    affectation_date = parse_calendar_date(declaration.sla_date)
+    intervention_date = parse_calendar_date(payload.intervention_date)
+    if not intervention_date:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date de realisation obligatoire")
+    if affectation_date and intervention_date and intervention_date < affectation_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La date de realisation ne peut pas etre inferieure a la date definie dans l'affectation",
+        )
     declaration.intervention_actions = payload.actions
     declaration.intervention_minutes = payload.minutes
+    declaration.intervention_days = payload.days
+    declaration.intervention_date = payload.intervention_date
     declaration.intervention_difficulties = payload.difficulties
     declaration.intervention_at = utcnow()
     declaration.intervention_by_id = user.id
