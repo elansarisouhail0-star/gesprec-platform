@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.dependencies import require_roles
+from app.config import get_settings
 from app.emailer import send_email, smtp_enabled
 from app.models import Role, User
 
@@ -13,8 +14,16 @@ class EmailTestIn(BaseModel):
 
 
 @router.get("/email-status")
-def email_status(_: User = Depends(require_roles(Role.hse))) -> dict[str, bool]:
-    return {"smtp_enabled": smtp_enabled()}
+def email_status(_: User = Depends(require_roles(Role.hse))) -> dict[str, bool | int]:
+    settings = get_settings()
+    return {
+        "smtp_enabled": smtp_enabled(),
+        "smtp_host_configured": bool(settings.smtp_host),
+        "smtp_from_configured": bool(settings.smtp_from),
+        "smtp_username_configured": bool(settings.smtp_username),
+        "smtp_port": settings.smtp_port,
+        "smtp_tls": settings.smtp_tls,
+    }
 
 
 @router.post("/email-test")

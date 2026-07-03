@@ -20,8 +20,9 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
     msg["Subject"] = subject
     msg.set_content(body)
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-        if settings.smtp_tls:
+    smtp_factory = smtplib.SMTP_SSL if settings.smtp_port == 465 else smtplib.SMTP
+    with smtp_factory(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
+        if settings.smtp_tls and settings.smtp_port != 465:
             smtp.starttls()
         if settings.smtp_username:
             smtp.login(settings.smtp_username, settings.smtp_password)
