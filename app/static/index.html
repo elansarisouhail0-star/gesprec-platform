@@ -40,7 +40,7 @@
   .brand{ display:flex; align-items:center; gap:8px; margin-bottom:26px; padding:0 6px; white-space:nowrap; }
   .brand .mark{ width:30px; height:30px; border-radius:6px; background:linear-gradient(135deg,var(--orange),var(--amber)); flex-shrink:0;
     display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
-  .brand .brand-logo{ width:54px; height:24px; object-fit:contain; flex-shrink:0; border-radius:4px; background:#f6f1e8; }
+  .brand .brand-logo{ width:80px; height:34px; object-fit:contain; flex-shrink:0; border-radius:6px; }
   .brand .name{ font-family:var(--display); font-weight:700; font-size:19px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; }
   .brand .sub{ font-size:10px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; }
 
@@ -65,6 +65,10 @@
   }
   .atelier-pill b{ color:var(--text); font-weight:600;}
   .qr-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green);}
+  .locked-atelier{
+    margin-left:8px; color:var(--text-dim); font-weight:700; background:var(--panel-2);
+    border:1px solid var(--line); border-radius:7px; padding:6px 12px; min-width:150px; text-align:center;
+  }
 
   /* ---------- KPI CARDS ---------- */
   .kpi-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:22px; }
@@ -124,6 +128,10 @@
   .field input[type=file]{
     width:100%; background:var(--panel-2); border:1px dashed var(--line); color:var(--text-dim); padding:10px 12px;
     border-radius:7px; font-family:var(--body); font-size:13px;
+  }
+  .locked-atelier-field{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text-dim);
+    padding:10px 12px; border-radius:7px; font-weight:700;
   }
   .field textarea{ min-height:90px; resize:vertical; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -257,12 +265,23 @@ function daysBetween(start, end){
   return Math.max(0, Math.round(ms / 86400000));
 }
 
+function atelierPillHTML(){
+  return `<div class="atelier-pill"><span class="qr-dot"></span> QR scanne : <b>&nbsp;${state.atelierScanne}</b>
+    ${state.qrAtelierLocked
+      ? `<span class="locked-atelier">${state.atelierScanne}</span>`
+      : `<select id="atelierSelect" style="margin-left:8px;background:transparent;border:none;color:var(--text-dim);font-size:12px;">
+          ${ATELIERS.map(a=>`<option ${a===state.atelierScanne?'selected':''}>${a}</option>`).join("")}
+        </select>`}
+  </div>`;
+}
+
 let state = {
   auth: { loggedIn:false },    // authentification requise pour tous sauf déclarant
   loginSelectedRole: null,     // rôle choisi sur l'écran de connexion
   loginForm: { error:"" },
   role: null,                  // declarant | hse | chef_centre | coordination | traitement
   atelierScanne: ATELIERS[0],
+  qrAtelierLocked: false,
   tab: "dashboard",
   declarations: [],
   notifications: [],
@@ -631,12 +650,7 @@ function topbarHTML(){
   return `
   <div class="topbar">
     <h1>${titles[state.tab]}</h1>
-    ${state.tab!=="nouvelle" ? `
-    <div class="atelier-pill"><span class="qr-dot"></span> QR scanné : <b>&nbsp;${state.atelierScanne}</b>
-      <select id="atelierSelect" style="margin-left:8px;background:transparent;border:none;color:var(--text-dim);font-size:12px;">
-        ${ATELIERS.map(a=>`<option ${a===state.atelierScanne?'selected':''}>${a}</option>`).join("")}
-      </select>
-    </div>` : ""}
+    ${state.tab!=="nouvelle" ? atelierPillHTML() : ""}
   </div>`;
 }
 
@@ -746,7 +760,9 @@ function formHTML(){
   <div class="panel form-panel">
     <div class="field">
       <label>Atelier concerné</label>
-      <select id="f_atelier">${ATELIERS.map(a=>`<option ${a===f.atelier?'selected':''}>${a}</option>`).join("")}</select>
+      ${state.qrAtelierLocked
+        ? `<div class="locked-atelier-field">${f.atelier}</div>`
+        : `<select id="f_atelier">${ATELIERS.map(a=>`<option ${a===f.atelier?'selected':''}>${a}</option>`).join("")}</select>`}
     </div>
     <div class="field">
       <label>Identification</label>
@@ -1076,6 +1092,7 @@ const savedUser = localStorage.getItem("gesprec_user");
 const urlAtelier = new URLSearchParams(window.location.search).get("atelier");
 if(urlAtelier && ATELIERS.includes(urlAtelier)){
   state.atelierScanne = urlAtelier;
+  state.qrAtelierLocked = true;
   state.form.atelier = urlAtelier;
   state.tab = "nouvelle";
 }
@@ -1374,12 +1391,7 @@ topbarHTML = function(){
   return `
   <div class="topbar">
     <h1>${titles[state.tab] || "Gesprec"}</h1>
-    ${state.tab!=="nouvelle" ? `
-    <div class="atelier-pill"><span class="qr-dot"></span> QR scanne : <b>&nbsp;${state.atelierScanne}</b>
-      <select id="atelierSelect" style="margin-left:8px;background:transparent;border:none;color:var(--text-dim);font-size:12px;">
-        ${ATELIERS.map(a=>`<option ${a===state.atelierScanne?'selected':''}>${a}</option>`).join("")}
-      </select>
-    </div>` : ""}
+    ${state.tab!=="nouvelle" ? atelierPillHTML() : ""}
   </div>`;
 };
 
