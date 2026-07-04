@@ -21,6 +21,24 @@ from app.services import add_history, add_notification, next_reference
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
 
+TREATMENT_ATELIERS = {
+    "traitement1@gesprec.local": "Atelier HITACHI",
+    "traitement2@gesprec.local": "Atelier levage",
+    "traitement3@gesprec.local": "Atelier Tour en fosse",
+}
+
+
+def treatment_atelier(user: User) -> str | None:
+    return TREATMENT_ATELIERS.get(user.email.lower())
+
+
+def assert_treatment_atelier_access(user: User, declaration: Declaration) -> None:
+    if Role(user.role) != Role.traitement:
+        return
+    allowed_atelier = treatment_atelier(user)
+    if allowed_atelier and declaration.atelier != allowed_atelier:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Atelier non autorise pour ce responsable traitement")
+
 
 def parse_calendar_date(value: str | None) -> datetime | None:
     if not value or value in {"-", "—"}:
@@ -91,7 +109,7 @@ def create_declaration(
 @router.get("", response_model=list[DeclarationOut])
 def list_declarations(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement)),
+    user: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement)),
     status_filter: Status | None = Query(default=None, alias="status"),
     atelier: str | None = None,
     category: Category | None = None,
@@ -99,6 +117,9 @@ def list_declarations(
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[Declaration]:
     stmt = select(Declaration).options(selectinload(Declaration.photos), selectinload(Declaration.history))
+    allowed_atelier = treatment_atelier(user)
+    if allowed_atelier:
+        stmt = stmt.where(Declaration.atelier == allowed_atelier)
     if status_filter:
         stmt = stmt.where(Declaration.status == status_filter)
     if atelier:
@@ -114,9 +135,11 @@ def list_declarations(
 def get_declaration(
     declaration_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement)),
+    user: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement)),
 ) -> Declaration:
-    return load_declaration(db, declaration_id)
+    declaration = load_declaration(db, declaration_id)
+    assert_treatment_atelier_access(user, declaration)
+    return declaration
 
 
 @router.post("/{declaration_id}/analyse", response_model=DeclarationOut)
@@ -158,7 +181,12 @@ def assign_declaration(
     declaration.assigned_at = utcnow()
     declaration.assigned_by_id = user.id
     declaration.status = Status.affecte
-    add_history(db, declaration, f"Affecte au service {payload.service} - responsable: {payload.responsible}", user)
+    add_history(
+        db,
+        declaration,
+        f"Affecte au service {payload.service} - responsable: {payload.responsible} - deadline: {payload.sla_date or '-'}",
+        user,
+    )
     add_notification(db, declaration, f"Declaration {declaration.reference} affectee a {payload.service}", Audience.all)
     if payload.email:
         try:
@@ -193,6 +221,7 @@ def plan_declaration(
     user: User = Depends(require_roles(Role.traitement)),
 ) -> Declaration:
     declaration = load_declaration(db, declaration_id)
+    assert_treatment_atelier_access(user, declaration)
     assert_status(declaration, Status.affecte)
     declaration.planned_date = payload.date
     declaration.planned_time = payload.time
@@ -215,6 +244,7 @@ def complete_intervention(
     user: User = Depends(require_roles(Role.traitement)),
 ) -> Declaration:
     declaration = load_declaration(db, declaration_id)
+    assert_treatment_atelier_access(user, declaration)
     assert_status(declaration, Status.planifie)
     affectation_date = parse_calendar_date(declaration.sla_date)
     intervention_date = parse_calendar_date(payload.intervention_date)

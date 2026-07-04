@@ -4,10 +4,16 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import HSE_ROLES, get_current_user, parse_role
-from app.models import Audience, Notification, Role, User
+from app.models import Audience, Declaration, Notification, Role, User
 from app.schemas import NotificationOut
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+TREATMENT_ATELIERS = {
+    "traitement1@gesprec.local": "Atelier HITACHI",
+    "traitement2@gesprec.local": "Atelier levage",
+    "traitement3@gesprec.local": "Atelier Tour en fosse",
+}
 
 
 @router.get("", response_model=list[NotificationOut])
@@ -20,6 +26,9 @@ def list_notifications(
         stmt = select(Notification)
     elif role == Role.traitement:
         stmt = select(Notification).where(Notification.audience == Audience.all)
+        allowed_atelier = TREATMENT_ATELIERS.get(user.email.lower())
+        if allowed_atelier:
+            stmt = stmt.join(Notification.declaration).where(Declaration.atelier == allowed_atelier)
     else:
         raise HTTPException(status_code=403, detail="Role non autorise")
     return list(db.scalars(stmt.order_by(desc(Notification.created_at)).limit(200)))

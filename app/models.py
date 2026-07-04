@@ -21,6 +21,7 @@ class Role(str, Enum):
 
 class Category(str, Enum):
     securite = "Securite"
+    surete = "Surete"
     maintenance = "Maintenance"
     qualite = "Qualite"
     environnement = "Environnement"
