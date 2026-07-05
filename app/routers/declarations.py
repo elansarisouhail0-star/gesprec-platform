@@ -94,7 +94,7 @@ def create_declaration(
     db.add(declaration)
     db.flush()
     prefix = "CRITIQUE - " if payload.gravity == Gravity.critique else ""
-    add_history(db, declaration, f"Declaration creee sur {declaration.atelier}", user)
+    add_history(db, declaration, f"Phase declaration - declaration creee sur {declaration.atelier}", user)
     add_notification(
         db,
         declaration,
@@ -158,7 +158,12 @@ def analyse_declaration(
     declaration.analysis_at = utcnow()
     declaration.analyzed_by_id = user.id
     declaration.status = Status.analyse
-    add_history(db, declaration, f"Analyse effectuee - risque: {payload.risk_type}", user)
+    add_history(
+        db,
+        declaration,
+        f"Phase analyse - gravite retenue: {payload.real_gravity.value}; risque: {payload.risk_type}; cause probable: {payload.probable_cause or '-'}",
+        user,
+    )
     db.commit()
     return load_declaration(db, declaration_id)
 
@@ -184,7 +189,11 @@ def assign_declaration(
     add_history(
         db,
         declaration,
-        f"Affecte au service {payload.service} - responsable: {payload.responsible} - deadline: {payload.sla_date or '-'}",
+        (
+            f"Phase affectation - service: {payload.service}; responsable: {payload.responsible}; "
+            f"priorite: {payload.priority}; date limite: {payload.sla_date or '-'}; "
+            f"destinataire email: {payload.email or '-'}"
+        ),
         user,
     )
     add_notification(db, declaration, f"Declaration {declaration.reference} affectee a {payload.service}", Audience.all)
@@ -206,9 +215,20 @@ def assign_declaration(
                     "Merci de planifier et realiser le traitement dans les delais.\n"
                 ),
             )
-            add_history(db, declaration, "Email deadline envoye" if sent else "Email deadline non envoye - SMTP non configure", user)
+            add_history(
+                db,
+                declaration,
+                (
+                    f"Phase affectation - email deadline envoye au destinataire {payload.email}"
+                    if sent
+                    else f"Phase affectation - email deadline non envoye au destinataire {payload.email} - SMTP non configure"
+                ),
+                user,
+            )
         except Exception as exc:
-            add_history(db, declaration, f"Echec envoi email deadline: {exc}", user)
+            add_history(db, declaration, f"Phase affectation - echec envoi email deadline au destinataire {payload.email}: {exc}", user)
+    else:
+        add_history(db, declaration, "Phase affectation - aucun destinataire email renseigne", user)
     db.commit()
     return load_declaration(db, declaration_id)
 
@@ -230,7 +250,12 @@ def plan_declaration(
     declaration.planned_at = utcnow()
     declaration.planned_by_id = user.id
     declaration.status = Status.planifie
-    add_history(db, declaration, f"Intervention planifiee le {payload.date} a {payload.time}", user)
+    add_history(
+        db,
+        declaration,
+        f"Phase planification - intervention planifiee le {payload.date} a {payload.time}; techniciens: {payload.technicians or '-'}; materiel: {payload.material or '-'}",
+        user,
+    )
     add_notification(db, declaration, f"Declaration {declaration.reference} planifiee", Audience.admin)
     db.commit()
     return load_declaration(db, declaration_id)
@@ -263,7 +288,12 @@ def complete_intervention(
     declaration.intervention_at = utcnow()
     declaration.intervention_by_id = user.id
     declaration.status = Status.realisee
-    add_history(db, declaration, "Actions correctives realisees", user)
+    add_history(
+        db,
+        declaration,
+        f"Phase intervention - actions correctives realisees le {payload.intervention_date}; duree: {payload.days} jour(s); difficultes: {payload.difficulties or '-'}",
+        user,
+    )
     add_notification(db, declaration, f"Declaration {declaration.reference} prete pour verification", Audience.admin)
     db.commit()
     return load_declaration(db, declaration_id)
@@ -284,11 +314,11 @@ def verify_declaration(
     if payload.conform:
         declaration.status = Status.cloture
         declaration.closed_at = utcnow()
-        add_history(db, declaration, "Verification conforme - declaration cloturee", user)
+        add_history(db, declaration, f"Phase verification - conforme; declaration cloturee; commentaire: {payload.comment or '-'}", user)
         add_notification(db, declaration, f"Declaration {declaration.reference} conforme et cloturee", Audience.all)
     else:
         declaration.status = Status.planifie
-        add_history(db, declaration, "Verification non conforme - replanification demandee", user)
+        add_history(db, declaration, f"Phase verification - non conforme; replanification demandee; commentaire: {payload.comment or '-'}", user)
         add_notification(db, declaration, f"Declaration {declaration.reference} non conforme - replanification requise", Audience.all)
     db.commit()
     return load_declaration(db, declaration_id)
