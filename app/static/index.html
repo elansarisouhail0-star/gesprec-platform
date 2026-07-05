@@ -42,20 +42,18 @@
     display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
   .brand .brand-logo{ width:74px; height:30px; object-fit:contain; flex-shrink:0; border-radius:6px; }
   .brand .name{ font-family:var(--display); font-weight:700; font-size:18px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; color:#fff; }
-  .brand .sub{ font-size:10px; color:#fff; letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
+  .brand .sub{ font-size:10px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
 
   .navitem{
     display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer;
-    color:#fff; font-weight:600; font-size:14.5px; margin-bottom:2px; border:1px solid transparent;
+    color:var(--text-dim); font-weight:500; font-size:14.5px; margin-bottom:2px; border:1px solid transparent;
   }
-  .navitem:hover{ background:var(--panel-2); color:#fff; }
-  .navitem.active{ background:rgba(255,106,43,0.16); color:#fff; border-color:rgba(255,255,255,0.22); font-weight:700;}
+  .navitem:hover{ background:var(--panel-2); color:var(--text); }
+  .navitem.active{ background:rgba(255,106,43,0.12); color:var(--orange); border-color:rgba(255,106,43,0.25); font-weight:600;}
   .navitem .badge{ margin-left:auto; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; border-radius:10px; padding:1px 7px; font-family:var(--mono);}
 
   .sidebar-footer{ margin-top:auto; padding:12px 6px 0; border-top:1px solid var(--line); }
-  .role-box{ font-size:11px; color:#fff; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;}
-  .current-role{ color:#fff; }
-  .logout-btn{ color:#fff; }
+  .role-box{ font-size:11px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;}
 
   /* ---------- MAIN ---------- */
   .main{ flex:1; padding:26px 34px; max-width:1400px; }
@@ -1481,7 +1479,7 @@ sidebarHTML = function(){
   const unread = state.notifications.filter(n=>!n.read && notifVisibleTo(n, role)).length;
   let items = [{k:"dashboard", label:"Tableau de bord", icon:"▦"}];
   if(isHSERole(role)){
-    items.push({k:"declarations", label:"Déclarations", icon:"☰"});
+    items.push({k:"declarations", label:"Declarations", icon:"☰"});
     items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
     items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
     if(role==="hse") items.push({k:"utilisateurs", label:"Utilisateurs", icon:"◉"});
@@ -1495,7 +1493,7 @@ sidebarHTML = function(){
   <div class="sidebar">
     <div class="brand">
       ${brandMarkHTML()}
-      <div><div class="name">Gestion Précurseurs</div><div class="sub">EMIC - TMLC</div></div>
+      <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
     </div>
     ${items.map(it=>`
       <div class="navitem ${state.tab===it.k?'active':''}" data-tab="${it.k}">
@@ -1503,15 +1501,15 @@ sidebarHTML = function(){
         ${it.badge?`<span class="badge">${it.badge}</span>`:""}
       </div>`).join("")}
     <div class="sidebar-footer">
-      <div class="role-box">Connecté en tant que</div>
+      <div class="role-box">Connecte en tant que</div>
       <div class="current-role">${roleLabel(role)}</div>
-      <div class="logout-btn" id="logoutBtn">Déconnexion</div>
+      <div class="logout-btn" id="logoutBtn">Deconnexion</div>
     </div>
   </div>`;
 };
 
 topbarHTML = function(){
-  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle déclaration", declarations:"Déclarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs"};
+  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle declaration", declarations:"Declarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs"};
   return `
   <div class="topbar">
     <h1>${titles[state.tab] || "Gesprec"}</h1>
