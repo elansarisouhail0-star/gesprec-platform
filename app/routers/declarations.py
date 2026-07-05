@@ -243,6 +243,15 @@ def plan_declaration(
     declaration = load_declaration(db, declaration_id)
     assert_treatment_atelier_access(user, declaration)
     assert_status(declaration, Status.affecte)
+    deadline_date = parse_calendar_date(declaration.sla_date)
+    planned_date = parse_calendar_date(payload.date)
+    if not planned_date:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date de planification obligatoire")
+    if deadline_date and planned_date > deadline_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La date de planification ne peut pas etre superieure a la date limite",
+        )
     declaration.planned_date = payload.date
     declaration.planned_time = payload.time
     declaration.planned_technicians = payload.technicians
@@ -271,14 +280,20 @@ def complete_intervention(
     declaration = load_declaration(db, declaration_id)
     assert_treatment_atelier_access(user, declaration)
     assert_status(declaration, Status.planifie)
-    affectation_date = parse_calendar_date(declaration.sla_date)
+    deadline_date = parse_calendar_date(declaration.sla_date)
+    planned_date = parse_calendar_date(declaration.planned_date)
     intervention_date = parse_calendar_date(payload.intervention_date)
     if not intervention_date:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date de realisation obligatoire")
-    if affectation_date and intervention_date and intervention_date < affectation_date:
+    if planned_date and intervention_date < planned_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La date de realisation ne peut pas etre inferieure a la date definie dans l'affectation",
+            detail="La date de realisation ne peut pas etre inferieure a la date de planification",
+        )
+    if deadline_date and intervention_date > deadline_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La date de realisation ne peut pas etre superieure a la date limite",
         )
     declaration.intervention_actions = payload.actions
     declaration.intervention_minutes = payload.minutes

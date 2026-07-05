@@ -32,15 +32,19 @@ def apply_lightweight_migrations() -> None:
     inspector = inspect(engine)
     if "declarations" not in inspector.get_table_names():
         return
-    columns = {column["name"] for column in inspector.get_columns("declarations")}
-    additions = {
+    declaration_columns = {column["name"] for column in inspector.get_columns("declarations")}
+    declaration_additions = {
         "intervention_days": "INTEGER",
         "intervention_date": "VARCHAR(80)",
     }
     with engine.begin() as conn:
-        for name, sql_type in additions.items():
-            if name not in columns:
+        for name, sql_type in declaration_additions.items():
+            if name not in declaration_columns:
                 conn.execute(text(f"ALTER TABLE declarations ADD COLUMN {name} {sql_type}"))
+        if "photos" in inspector.get_table_names():
+            photo_columns = {column["name"] for column in inspector.get_columns("photos")}
+            if "phase" not in photo_columns:
+                conn.execute(text("ALTER TABLE photos ADD COLUMN phase VARCHAR(40) DEFAULT 'declaration'"))
 
 
 @app.on_event("startup")

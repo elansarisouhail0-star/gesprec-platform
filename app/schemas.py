@@ -49,6 +49,7 @@ class PhotoOut(BaseModel):
     filename: str
     original_name: str
     content_type: str
+    phase: str = "declaration"
     created_at: datetime
 
 

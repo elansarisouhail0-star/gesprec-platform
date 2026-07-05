@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -20,6 +20,7 @@ settings = get_settings()
 @router.post("/{declaration_id}/photos", response_model=DeclarationOut)
 async def upload_photo(
     declaration_id: int,
+    phase: str = Query(default="declaration", pattern="^(declaration|intervention)$"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User | None = Depends(get_optional_user),
@@ -47,8 +48,10 @@ async def upload_photo(
             original_name=os.path.basename(file.filename or filename),
             content_type=file.content_type,
             path=str(file_path),
+            phase=phase,
         )
     )
-    add_history(db, declaration, f"Photo ajoutee: {file.filename}", user)
+    phase_label = "declaration" if phase == "declaration" else "intervention realisee"
+    add_history(db, declaration, f"Photo ajoutee ({phase_label}): {file.filename}", user)
     db.commit()
     return load_declaration(db, declaration_id)

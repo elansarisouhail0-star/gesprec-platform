@@ -34,29 +34,29 @@
 
   /* ---------- SIDEBAR ---------- */
   .sidebar{
-    width:264px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line);
-    display:flex; flex-direction:column; padding:20px 16px;
+    width:240px; flex-shrink:0; background:#fff; border-right:1px solid #f0c4aa;
+    display:flex; flex-direction:column; padding:14px 12px; height:100vh; overflow-y:auto;
   }
-  .brand{ display:flex; align-items:center; gap:8px; margin-bottom:26px; padding:0 6px; white-space:nowrap; }
+  .brand{ display:flex; align-items:center; gap:8px; margin-bottom:16px; padding:0 4px; white-space:nowrap; }
   .brand .mark{ width:30px; height:30px; border-radius:6px; background:linear-gradient(135deg,var(--orange),var(--amber)); flex-shrink:0;
     display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
-  .brand .brand-logo{ width:74px; height:30px; object-fit:contain; flex-shrink:0; border-radius:6px; }
-  .brand .name{ font-family:var(--display); font-weight:700; font-size:18px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; color:#fff; }
-  .brand .sub{ font-size:10px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
+  .brand .brand-logo{ width:68px; height:28px; object-fit:contain; flex-shrink:0; border-radius:6px; }
+  .brand .name{ font-family:var(--display); font-weight:700; font-size:17px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; color:#8f2f0b; }
+  .brand .sub{ font-size:9.5px; color:#8f2f0b; letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
 
   .navitem{
-    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer;
-    color:var(--text-dim); font-weight:500; font-size:14.5px; margin-bottom:2px; border:1px solid transparent;
+    display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; cursor:pointer;
+    color:#8f2f0b; font-weight:700; font-size:13.8px; margin-bottom:2px; border:1px solid transparent;
   }
-  .navitem:hover{ background:var(--panel-2); color:var(--text); }
-  .navitem.active{ background:rgba(255,106,43,0.12); color:var(--orange); border-color:rgba(255,106,43,0.25); font-weight:600;}
+  .navitem:hover{ background:#fff7f3; color:#7c2608; }
+  .navitem.active{ background:#fff0e8; color:#7c2608; border-color:#d06a3c; font-weight:800;}
   .navitem .badge{ margin-left:auto; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; border-radius:10px; padding:1px 7px; font-family:var(--mono);}
 
-  .sidebar-footer{ margin-top:auto; padding:12px 6px 0; border-top:1px solid var(--line); }
-  .role-box{ font-size:11px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;}
+  .sidebar-footer{ margin-top:auto; padding:8px 4px 0; border-top:1px solid #f0c4aa; }
+  .role-box{ font-size:10.5px; color:#8f2f0b; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;}
 
   /* ---------- MAIN ---------- */
-  .main{ flex:1; padding:26px 34px; max-width:1400px; }
+  .main{ flex:1; padding:20px 26px; max-width:1400px; }
   .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
   .topbar h1{ font-family:var(--display); font-weight:700; font-size:28px; margin:0; letter-spacing:0.2px;}
   .atelier-pill{
@@ -221,12 +221,12 @@
   .solo-logout:hover{ color:var(--text); border-color:var(--orange); }
 
   /* ---------- SIDEBAR CURRENT ROLE / LOGOUT ---------- */
-  .current-role{ font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:10px; }
+  .current-role{ font-size:13px; font-weight:700; color:#8f2f0b; margin-bottom:7px; }
   .logout-btn{
-    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text-dim); padding:8px 10px;
-    border-radius:7px; font-family:var(--body); font-size:12.5px; font-weight:500; cursor:pointer; text-align:center;
+    width:100%; background:#fff7f3; border:1px solid #f0c4aa; color:#8f2f0b; padding:7px 10px;
+    border-radius:7px; font-family:var(--body); font-size:12.5px; font-weight:700; cursor:pointer; text-align:center;
   }
-  .logout-btn:hover{ color:var(--text); border-color:var(--red); }
+  .logout-btn:hover{ color:#7c2608; border-color:#d06a3c; }
 </style>
 </head>
 <body>
@@ -479,6 +479,33 @@ async function imageForPDF(src){
   });
 }
 
+async function addPdfImages(doc, title, photos, y, pageH){
+  if(!photos || !photos.length) return y;
+  y = ensurePdfSpace(doc, y, 10, pageH);
+  doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(40);
+  doc.text(title, 14, y); y+=5;
+  doc.setFont("helvetica","normal"); doc.setTextColor(60);
+  let x = 14;
+  const imgW = 42;
+  const imgH = 32;
+  for(let i=0; i<photos.length; i++){
+    const dataUrl = await imageForPDF(photos[i]);
+    if(!dataUrl) continue;
+    y = ensurePdfSpace(doc, y, imgH + 8, pageH);
+    doc.addImage(dataUrl, "JPEG", x, y, imgW, imgH);
+    doc.setFontSize(7);
+    doc.text("Image " + (i + 1), x, y + imgH + 4);
+    x += imgW + 6;
+    if(x + imgW > 196){
+      x = 14;
+      y += imgH + 9;
+    }
+  }
+  if(x !== 14) y += imgH + 9;
+  doc.setFontSize(9);
+  return y;
+}
+
 async function exportDeclarationsPDF(){
   if(typeof window.jspdf==="undefined"){ toast("Bibliothèque PDF indisponible."); return; }
   const { jsPDF } = window.jspdf;
@@ -508,30 +535,10 @@ async function exportDeclarationsPDF(){
       y = ensurePdfSpace(doc, y, 5, pageH);
       doc.text("Clôturée le " + d.cloture.dateCloture + " — délai réel : " + d.cloture.delaiReel, 14, y); y+=5;
     }
-    if(d.photos && d.photos.length){
-      y = ensurePdfSpace(doc, y, 10, pageH);
-      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(40);
-      doc.text("Images jointes", 14, y); y+=5;
-      doc.setFont("helvetica","normal"); doc.setTextColor(60);
-      let x = 14;
-      const imgW = 42;
-      const imgH = 32;
-      for(let i=0; i<d.photos.length; i++){
-        const dataUrl = await imageForPDF(d.photos[i]);
-        if(!dataUrl) continue;
-        y = ensurePdfSpace(doc, y, imgH + 8, pageH);
-        doc.addImage(dataUrl, "JPEG", x, y, imgW, imgH);
-        doc.setFontSize(7);
-        doc.text("Image " + (i + 1), x, y + imgH + 4);
-        x += imgW + 6;
-        if(x + imgW > 196){
-          x = 14;
-          y += imgH + 9;
-        }
-      }
-      if(x !== 14) y += imgH + 9;
-      doc.setFontSize(9);
-    }
+    const declarationPhotos = d.declarationPhotos || d.photos || [];
+    const interventionPhotos = d.interventionPhotos || [];
+    y = await addPdfImages(doc, "Images jointes a la declaration", declarationPhotos, y, pageH);
+    y = await addPdfImages(doc, "Images intervention realisee", interventionPhotos, y, pageH);
     doc.setDrawColor(220); doc.line(14, y, 196, y); y+=6;
   }
 
@@ -1000,10 +1007,11 @@ function actionBlockHTML(dec){
   }
   // Traitement: planification
   if(role==="traitement" && dec.status==="affecte"){
+    const deadlineDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
     return `
     <div class="section-title">Planification de l'intervention</div>
     <div class="row2">
-      <div class="field"><label>Date</label><input type="date" id="p_date"></div>
+      <div class="field"><label>Date</label><input type="date" id="p_date" ${deadlineDate?`max="${deadlineDate}"`:''}></div>
       <div class="field"><label>Heure</label><input type="time" id="p_heure"></div>
     </div>
     <div class="field"><label>Techniciens affectés</label><input type="text" id="p_tech" placeholder="Noms des techniciens"></div>
@@ -1011,12 +1019,13 @@ function actionBlockHTML(dec){
     <button class="btn" id="btnPlanifier" data-id="${dec.id}">Planifier</button>`;
   }
   if(role==="traitement" && dec.status==="planifie"){
-    const minDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    const minDate = calendarDateValue(dec.planification && dec.planification.date);
+    const maxDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
     return `
     <div class="section-title">Réalisation des actions correctives</div>
     <div class="field"><label>Actions réalisées</label><textarea id="i_actions" placeholder="Décrire les travaux effectués"></textarea></div>
     <div class="row2">
-      <div class="field"><label>Date de réalisation</label><input type="date" id="i_date" ${minDate?`min="${minDate}"`:''}></div>
+      <div class="field"><label>Date de réalisation</label><input type="date" id="i_date" ${minDate?`min="${minDate}"`:''} ${maxDate?`max="${maxDate}"`:''}></div>
       <div class="field"><label>Difficultés rencontrées</label><input type="text" id="i_diff" placeholder="Optionnel"></div>
     </div>
     <div class="field"><label>Image intervention réalisée</label><input type="file" id="i_photos" accept="image/*" multiple></div>
@@ -1147,8 +1156,19 @@ function bindEvents(){
   };
   const btnPlanifier = document.getElementById("btnPlanifier");
   if(btnPlanifier) btnPlanifier.onclick = ()=>{
+    const dec = findDec(btnPlanifier.dataset.id);
+    const plannedDate = document.getElementById("p_date").value;
+    const deadlineDate = calendarDateValue(dec && dec.affectation && dec.affectation.slaDate);
+    if(!plannedDate){
+      toast("Merci de choisir la date de planification.");
+      return;
+    }
+    if(deadlineDate && plannedDate > deadlineDate){
+      toast("La date de planification ne peut pas depasser la deadline.");
+      return;
+    }
     doPlanification(btnPlanifier.dataset.id, {
-      date: document.getElementById("p_date").value || "—",
+      date: plannedDate,
       heure: document.getElementById("p_heure").value || "—",
       techniciens: document.getElementById("p_tech").value,
       materiel: document.getElementById("p_mat").value
@@ -1158,19 +1178,24 @@ function bindEvents(){
   if(btnIntervention) btnIntervention.onclick = ()=>{
     const dec = findDec(btnIntervention.dataset.id);
     const interventionDate = document.getElementById("i_date").value;
-    const minDate = calendarDateValue(dec && dec.affectation && dec.affectation.slaDate);
+    const plannedDate = calendarDateValue(dec && dec.planification && dec.planification.date);
+    const deadlineDate = calendarDateValue(dec && dec.affectation && dec.affectation.slaDate);
     if(!interventionDate){
       toast("Merci de choisir la date de realisation.");
       return;
     }
-    if(minDate && interventionDate && interventionDate < minDate){
-      toast("La date de realisation ne peut pas etre inferieure a la date d'affectation.");
+    if(plannedDate && interventionDate < plannedDate){
+      toast("La date de realisation ne peut pas etre avant la date de planification.");
+      return;
+    }
+    if(deadlineDate && interventionDate > deadlineDate){
+      toast("La date de realisation ne peut pas depasser la deadline.");
       return;
     }
     doIntervention(btnIntervention.dataset.id, {
       actions: document.getElementById("i_actions").value,
       interventionDate,
-      tempsJours: daysBetween(minDate, interventionDate),
+      tempsJours: daysBetween(plannedDate, interventionDate),
       difficultes: document.getElementById("i_diff").value,
       photos: Array.from((document.getElementById("i_photos") || {}).files || [])
     });
@@ -1272,6 +1297,9 @@ function mapDeclaration(d){
   const apiId = d.id;
   const displayId = d.reference || String(d.id);
   const history = (d.history || []).map(h=>({date:fmtDate(h.created_at), action:h.action}));
+  const photoItems = (d.photos || []).map(p=>({src:"/uploads/" + p.filename, phase:p.phase || "declaration"}));
+  const declarationPhotos = photoItems.filter(p=>p.phase !== "intervention").map(p=>p.src);
+  const interventionPhotos = photoItems.filter(p=>p.phase === "intervention").map(p=>p.src);
   return {
     apiId,
     id: displayId,
@@ -1288,7 +1316,9 @@ function mapDeclaration(d){
     description: d.description,
     graviteInitiale: d.initial_gravity,
     graviteReelle: d.real_gravity,
-    photos: (d.photos || []).map(p=>"/uploads/" + p.filename),
+    photos: photoItems.map(p=>p.src),
+    declarationPhotos,
+    interventionPhotos,
     localisation: d.location || "",
     status: d.status,
     analyse: d.analysis_at ? {
@@ -1567,7 +1597,10 @@ function usersHTML(){
           <div style="font-size:13.5px;font-weight:600;">${u.full_name}</div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${u.email} - ${roleLabel(u.role)} - ${u.is_active ? "Actif" : "Inactif"}</div>
         </div>
-        <button class="btn secondary small" data-edit-user="${u.id}">Modifier</button>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;">
+          <button class="btn secondary small" data-edit-user="${u.id}">Modifier</button>
+          <button class="btn secondary small" data-delete-user="${u.id}" ${state.currentUser && Number(state.currentUser.id)===Number(u.id) ? "disabled" : ""}>Supprimer</button>
+        </div>
       </div>`).join("") || `<div class="empty">Aucun utilisateur.</div>`}
 
     <div class="section-title">Changer mon mot de passe</div>
@@ -1623,6 +1656,19 @@ bindEvents = function(){
       document.getElementById("u_role").value = u.role;
       document.getElementById("u_active").value = String(u.is_active);
       document.getElementById("u_password").value = "";
+    };
+  });
+  document.querySelectorAll("[data-delete-user]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const u = (state.users || []).find(x=>String(x.id)===String(btn.dataset.deleteUser));
+      if(!u) return;
+      if(!confirm("Supprimer le compte " + u.email + " ?")) return;
+      try{
+        await api("/auth/users/" + u.id, {method:"DELETE"});
+        await refreshData();
+        render();
+        toast("Utilisateur supprime.");
+      }catch(e){ toast(e.message || "Suppression impossible."); }
     };
   });
   const clearUser = document.getElementById("btnClearUser");
@@ -1724,7 +1770,7 @@ async function uploadFormPhotos(apiId, photos){
     const file = await dataUrlToFile(photos[i], "photo-" + (i+1) + ".jpg");
     const body = new FormData();
     body.append("file", file);
-    await api("/declarations/" + apiId + "/photos", {method:"POST", body});
+    await api("/declarations/" + apiId + "/photos?phase=declaration", {method:"POST", body});
   }
 }
 
@@ -1732,7 +1778,7 @@ async function uploadPhotoFiles(apiId, files){
   for(let i=0; i<files.length; i++){
     const body = new FormData();
     body.append("file", files[i]);
-    await api("/declarations/" + apiId + "/photos", {method:"POST", body});
+    await api("/declarations/" + apiId + "/photos?phase=intervention", {method:"POST", body});
   }
 }
 
@@ -1792,6 +1838,16 @@ doAffectation = async function(id, payload){
 doPlanification = async function(id, payload){
   const dec = findDec(id);
   try{
+    const plannedDate = payload.date;
+    const deadlineDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    if(!plannedDate || plannedDate === "—"){
+      toast("Merci de choisir la date de planification.");
+      return;
+    }
+    if(deadlineDate && plannedDate > deadlineDate){
+      toast("La date de planification ne peut pas depasser la deadline.");
+      return;
+    }
     await api("/declarations/" + dec.apiId + "/planification", {method:"POST", body:JSON.stringify({
       date: payload.date,
       time: payload.heure,
@@ -1805,15 +1861,20 @@ doPlanification = async function(id, payload){
 doIntervention = async function(id, payload){
   const dec = findDec(id);
   try{
-    const minDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
-    if(minDate && payload.interventionDate && payload.interventionDate < minDate){
-      toast("La date de realisation ne peut pas etre inferieure a la date d'affectation.");
+    const plannedDate = calendarDateValue(dec.planification && dec.planification.date);
+    const deadlineDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    if(plannedDate && payload.interventionDate && payload.interventionDate < plannedDate){
+      toast("La date de realisation ne peut pas etre avant la date de planification.");
+      return;
+    }
+    if(deadlineDate && payload.interventionDate && payload.interventionDate > deadlineDate){
+      toast("La date de realisation ne peut pas depasser la deadline.");
       return;
     }
     await api("/declarations/" + dec.apiId + "/intervention", {method:"POST", body:JSON.stringify({
       actions: payload.actions,
       minutes: 0,
-      days: Number(payload.tempsJours || daysBetween(minDate, payload.interventionDate)),
+      days: Number(payload.tempsJours || daysBetween(plannedDate, payload.interventionDate)),
       intervention_date: payload.interventionDate,
       difficulties: payload.difficultes
     })});

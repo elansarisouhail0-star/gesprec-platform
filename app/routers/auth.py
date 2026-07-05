@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_roles
-from app.models import Role, User
+from app.models import Declaration, HistoryEvent, Role, User
 from app.schemas import PasswordChange, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
 
@@ -81,6 +81,35 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.hse)),
+) -> None:
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vous ne pouvez pas supprimer votre propre compte")
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    for field in (
+        Declaration.created_by_id,
+        Declaration.analyzed_by_id,
+        Declaration.assigned_by_id,
+        Declaration.planned_by_id,
+        Declaration.intervention_by_id,
+        Declaration.closed_by_id,
+    ):
+        for declaration in db.scalars(select(Declaration).where(field == user_id)):
+            setattr(declaration, field.key, None)
+    for event in db.scalars(select(HistoryEvent).where(HistoryEvent.actor_id == user_id)):
+        event.actor_id = None
+
+    db.delete(user)
+    db.commit()
 
 
 @router.post("/change-password", response_model=UserOut)
