@@ -26,8 +26,12 @@
     --mono: 'IBM Plex Mono', monospace;
   }
   *{box-sizing:border-box;}
+  html{ min-height:100%; }
   body{
-    margin:0; background:var(--bg); color:var(--text); font-family:var(--body);
+    margin:0;
+    min-height:100%;
+    background:linear-gradient(to right, #fff 0, #fff 240px, var(--bg) 240px, var(--bg) 100%);
+    color:var(--text); font-family:var(--body);
     -webkit-font-smoothing:antialiased;
   }
   #app{ display:flex; min-height:100vh; }
@@ -35,13 +39,13 @@
   /* ---------- SIDEBAR ---------- */
   .sidebar{
     width:240px; flex-shrink:0; background:#fff; border-right:1px solid #f0c4aa;
-    display:flex; flex-direction:column; padding:14px 12px; height:100vh; overflow-y:auto;
+    display:flex; flex-direction:column; padding:14px 12px; min-height:100vh;
   }
-  .brand{ display:flex; align-items:center; gap:8px; margin-bottom:16px; padding:0 4px; white-space:nowrap; }
+  .brand{ display:flex; flex-direction:column; align-items:center; gap:2px; margin-bottom:30px; padding:0 2px; width:100%; }
   .brand .mark{ width:30px; height:30px; border-radius:6px; background:linear-gradient(135deg,var(--orange),var(--amber)); flex-shrink:0;
     display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
   .brand .brand-logo{ width:68px; height:28px; object-fit:contain; flex-shrink:0; border-radius:6px; }
-  .brand .name{ font-family:var(--display); font-weight:700; font-size:17px; letter-spacing:0.2px; white-space:nowrap; line-height:1.15; color:#8f2f0b; }
+  .brand .name{ font-family:var(--display); font-weight:800; font-size:31px; letter-spacing:0.1px; white-space:normal; line-height:.92; color:#8f2f0b; text-align:center; width:100%; }
   .brand .sub{ font-size:9.5px; color:#8f2f0b; letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
 
   .navitem{
@@ -187,6 +191,8 @@
   .empty{ color:var(--text-dim); font-size:13px; padding:20px; text-align:center; }
   .notif-row{ padding:12px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:14px; align-items:center; }
   .notif-row.is-read{ opacity:0.55; }
+  .notif-filters{ display:grid; grid-template-columns:1fr 190px; gap:10px; margin:0 0 14px; }
+  .notif-filters input{ width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:9px 11px; font-family:var(--body); font-size:13px; }
   .btn.voir-unread{ background:var(--orange); color:#14181D; border:none; }
   .btn.voir-read{ background:transparent; border:1.5px solid var(--green); color:var(--green); }
   .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
@@ -249,14 +255,14 @@ const STATUS_LABEL = {
 };
 
 function brandMarkHTML(){
-  return `<img class="brand-logo" src="/assets/oncf-logo.png" alt="ONCF">`;
+  return "";
 }
 
 function calendarDateValue(value){
   if(!value || value === "â€”" || value === "—" || value === "-") return "";
   const text = String(value).trim();
   if(/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-  const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s|,|$)/);
   if(m) return `${m[3]}-${m[2]}-${m[1]}`;
   const d = new Date(text);
   return isNaN(d.getTime()) ? "" : d.toISOString().slice(0,10);
@@ -290,6 +296,7 @@ let state = {
   tab: "dashboard",
   declarations: [],
   notifications: [],
+  notificationFilters: { reference:"", date:"" },
   openId: null,
   openHistoryIndex: null,
   previewImage: null,
@@ -916,18 +923,30 @@ function kanbanHTML(){
 
 /* ---------- NOTIFICATIONS ---------- */
 function notificationsHTML(){
-  const list = state.notifications.filter(n=>notifVisibleTo(n, state.role));
-  if(list.length===0) return `<div class="panel"><div class="empty">Aucune notification.</div></div>`;
+  const base = state.notifications.filter(n=>notifVisibleTo(n, state.role));
+  const ref = (state.notificationFilters.reference || "").trim().toLowerCase();
+  const date = state.notificationFilters.date || "";
+  const list = base.filter(n=>{
+    const atelierOk = !state.atelierScanne || n.atelier === state.atelierScanne;
+    const refOk = !ref || String(n.reference || "").toLowerCase().includes(ref) || String(n.message || "").toLowerCase().includes(ref);
+    const dateOk = !date || n.declarationCreatedDate === date;
+    return atelierOk && refOk && dateOk;
+  });
   const unread = list.filter(n=>!n.read).length;
   return `<div class="panel">
     <div class="section-header">
-      <div style="font-size:12.5px;color:var(--text-dim);">${unread} non lue(s) sur ${list.length}</div>
+      <div style="font-size:12.5px;color:var(--text-dim);">${unread} non lue(s) sur ${list.length} affichée(s) / ${base.length}</div>
     </div>
+    <div class="notif-filters">
+      <input type="text" id="notifRefFilter" placeholder="Rechercher par numero precurseur, ex. PRC-2026-0006" value="${state.notificationFilters.reference || ""}">
+      <input type="date" id="notifDateFilter" value="${state.notificationFilters.date || ""}">
+    </div>
+    ${list.length===0 ? `<div class="empty">Aucune notification pour ces filtres.</div>` : ""}
     ${list.map(n=>`
       <div class="notif-row ${n.read?'is-read':''}">
         <div>
           <div style="font-size:13.5px;">${n.message}</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${n.date}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${n.date} · ${n.atelier || "Atelier non defini"} · ${n.reference || ""}</div>
         </div>
         <span class="btn small ${n.read?'voir-read':'voir-unread'}" data-open="${n.declarationId}" data-notifid="${n.id}">${n.read?'✔ Vue':'Voir'}</span>
       </div>`).join("")}
@@ -1070,6 +1089,14 @@ function bindEvents(){
   };
   const atelierSel = document.getElementById("atelierSelect");
   if(atelierSel) atelierSel.onchange = e=>{ state.atelierScanne = e.target.value; render(); };
+  const notifRefFilter = document.getElementById("notifRefFilter");
+  if(notifRefFilter) notifRefFilter.oninput = e=>{
+    state.notificationFilters.reference = e.target.value;
+    clearTimeout(window.__gesprecNotifFilterTimer);
+    window.__gesprecNotifFilterTimer = setTimeout(render, 260);
+  };
+  const notifDateFilter = document.getElementById("notifDateFilter");
+  if(notifDateFilter) notifDateFilter.onchange = e=>{ state.notificationFilters.date = e.target.value; render(); };
 
   // form
   const bind = (id, key, checkbox)=>{
@@ -1367,6 +1394,9 @@ function mapNotification(n){
   return {
     id: n.id,
     declarationId: dec ? dec.id : String(n.declaration_id),
+    reference: dec ? dec.id : String(n.declaration_id),
+    atelier: dec ? dec.atelier : "",
+    declarationCreatedDate: dec ? calendarDateValue(dec.dateCreation) : "",
     message: n.message,
     date: fmtDate(n.created_at),
     read: n.read,
@@ -1522,8 +1552,8 @@ sidebarHTML = function(){
   return `
   <div class="sidebar">
     <div class="brand">
-      ${brandMarkHTML()}
-      <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
+      <div class="name">Gestion Précurseurs</div>
+      <div class="sub">ONCF - PM - EMIC - TMLC</div>
     </div>
     ${items.map(it=>`
       <div class="navitem ${state.tab===it.k?'active':''}" data-tab="${it.k}">
@@ -1539,11 +1569,12 @@ sidebarHTML = function(){
 };
 
 topbarHTML = function(){
-  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle declaration", declarations:"Declarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs"};
+  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle déclaration", declarations:"Déclarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs"};
+  const showAtelierFilter = !["nouvelle", "dashboard", "qrcodes", "utilisateurs"].includes(state.tab);
   return `
   <div class="topbar">
     <h1>${titles[state.tab] || "Gesprec"}</h1>
-    ${state.tab!=="nouvelle" ? atelierPillHTML() : ""}
+    ${showAtelierFilter ? atelierPillHTML() : ""}
   </div>`;
 };
 
