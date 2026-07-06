@@ -30,9 +30,12 @@
   body{
     margin:0;
     min-height:100%;
-    background:linear-gradient(to right, #fff 0, #fff 240px, var(--bg) 240px, var(--bg) 100%);
+    background:var(--bg);
     color:var(--text); font-family:var(--body);
     -webkit-font-smoothing:antialiased;
+  }
+  body.has-sidebar{
+    background:linear-gradient(to right, #fff 0, #fff 240px, var(--bg) 240px, var(--bg) 100%);
   }
   #app{ display:flex; min-height:100vh; }
 
@@ -41,12 +44,13 @@
     width:240px; flex-shrink:0; background:#fff; border-right:1px solid #f0c4aa;
     display:flex; flex-direction:column; padding:14px 12px; min-height:100vh;
   }
-  .brand{ display:flex; flex-direction:column; align-items:center; gap:2px; margin-bottom:30px; padding:0 2px; width:100%; }
+  .brand{ display:flex; flex-direction:column; align-items:center; gap:2px; margin-bottom:30px; padding:0 2px; width:100%; user-select:none; cursor:default; }
+  .brand.home-link{ cursor:pointer; }
   .brand .mark{ width:30px; height:30px; border-radius:6px; background:linear-gradient(135deg,var(--orange),var(--amber)); flex-shrink:0;
     display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; color:#14181D; font-size:16px;}
   .brand .brand-logo{ width:68px; height:28px; object-fit:contain; flex-shrink:0; border-radius:6px; }
   .brand .name{ font-family:var(--display); font-weight:800; font-size:31px; letter-spacing:0.1px; white-space:normal; line-height:.92; color:#8f2f0b; text-align:center; width:100%; }
-  .brand .sub{ font-size:9.5px; color:#8f2f0b; letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
+  .brand .sub{ font-size:9.5px; color:#ff7a35; letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; text-align:center; }
 
   .navitem{
     display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; cursor:pointer;
@@ -183,6 +187,7 @@
   .hist-item::before{ content:''; position:absolute; left:-19px; top:3px; width:8px; height:8px; border-radius:50%; background:var(--orange);}
   .hist-item.open::before{ background:#69717c; box-shadow:0 0 0 3px rgba(105,113,124,.18); }
   .hist-item b{ color:var(--text); }
+  .hist-summary{ margin-top:4px; color:#b6c0cc; font-size:12px; line-height:1.35; }
   .hist-detail{ display:none; margin-top:6px; background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:9px 10px; color:#8f98a3; }
   .hist-item.open .hist-detail{ display:block; }
   .image-preview{ position:fixed; inset:0; background:rgba(10,12,15,.86); display:flex; align-items:center; justify-content:center; z-index:120; padding:24px; }
@@ -580,6 +585,7 @@ function kpis(){
 
 function renderApp(){
   const app = document.getElementById("app");
+  document.body.classList.toggle("has-sidebar", state.auth.loggedIn && state.role !== "declarant");
 
   // Écran de connexion : le déclarant y accède directement sans authentification,
   // les 4 autres rôles doivent s'authentifier.
@@ -621,6 +627,19 @@ function render(){ renderApp(); }
 
 function imagePreviewHTML(){
   return `<div class="image-preview" id="imagePreview"><img src="${state.previewImage}" alt="Image jointe"></div>`;
+}
+
+function historySummary(action){
+  const a = String(action || "").toLowerCase();
+  if(a.includes("photo")) return "Une image jointe a ete ajoutee au dossier.";
+  if(a.includes("declaration")) return "La declaration a ete enregistree et integree au circuit de traitement.";
+  if(a.includes("analyse")) return "La situation a ete analysee avec la gravite, le risque et la cause probable.";
+  if(a.includes("affectation")) return "Le traitement a ete affecte avec responsable, priorite, deadline et destinataire email.";
+  if(a.includes("planification")) return "L'intervention a ete planifiee avec date, heure et moyens prevus.";
+  if(a.includes("intervention") || a.includes("realisee")) return "Les actions correctives realisees ont ete renseignees.";
+  if(a.includes("verification") || a.includes("conforme") || a.includes("cloture")) return "La verification HSE a ete effectuee et la decision de conformite a ete tracee.";
+  if(a.includes("email")) return "Une notification email a ete traitee pour cette phase.";
+  return "Action enregistree dans le suivi de la declaration.";
 }
 
 /* ---------- AUTHENTIFICATION ---------- */
@@ -986,6 +1005,7 @@ function modalHTML(dec){
       <div class="hist">
         ${dec.historique.map((h,i)=>`<div class="hist-item ${state.openHistoryIndex===i?'open':''}" data-history-index="${i}">
           <b>${h.date}</b>
+          <div class="hist-summary">${historySummary(h.action)}</div>
           <div class="hist-detail">${h.action}</div>
         </div>`).join("")}
       </div>
@@ -1021,7 +1041,7 @@ function actionBlockHTML(dec){
       <div class="field"><label>Date limite (SLA)</label><input type="date" id="af_sla"></div>
     </div>
     <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 techniciens, pièce détachée X"></div>
-    <div class="field"><label>Email du responsable de traitement</label><input type="text" id="af_email" placeholder="Ex. nom.prenom@entreprise.com"></div>
+    <div class="field"><label>Emails des responsables de traitement</label><input type="text" id="af_email" placeholder="Ex. s.elansari@oncf.ma; autre@oncf.ma"></div>
     <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et envoyer le deadline par email</button>`;
   }
   // Traitement: planification
@@ -1071,6 +1091,14 @@ function roleLabel(r){ return {declarant:"Déclarant", hse:"Responsable HSE", ch
 
 /* ============================= EVENTS ============================= */
 function bindEvents(){
+  const brandHome = document.getElementById("brandHome");
+  if(brandHome) brandHome.onclick = ()=>{
+    state.tab = "dashboard";
+    state.openId = null;
+    state.openHistoryIndex = null;
+    state.previewImage = null;
+    render();
+  };
   document.querySelectorAll(".navitem").forEach(el=>{
     el.onclick = ()=>{ state.tab = el.dataset.tab; render(); };
   });
@@ -1237,6 +1265,13 @@ function bindEvents(){
 const API_BASE = window.GESPREC_API_BASE || "";
 let apiToken = localStorage.getItem("gesprec_token") || "";
 const savedUser = localStorage.getItem("gesprec_user");
+
+function mediaUrl(path){
+  if(!path) return "";
+  if(path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) return path;
+  return API_BASE + path;
+}
+
 const urlAtelier = new URLSearchParams(window.location.search).get("atelier");
 if(urlAtelier && ATELIERS.includes(urlAtelier)){
   state.atelierScanne = urlAtelier;
@@ -1324,7 +1359,7 @@ function mapDeclaration(d){
   const apiId = d.id;
   const displayId = d.reference || String(d.id);
   const history = (d.history || []).map(h=>({date:fmtDate(h.created_at), action:h.action}));
-  const photoItems = (d.photos || []).map(p=>({src:"/uploads/" + p.filename, phase:p.phase || "declaration"}));
+  const photoItems = (d.photos || []).map(p=>({src:p.data_url || mediaUrl("/uploads/" + p.filename), phase:p.phase || "declaration"}));
   const declarationPhotos = photoItems.filter(p=>p.phase !== "intervention").map(p=>p.src);
   const interventionPhotos = photoItems.filter(p=>p.phase === "intervention").map(p=>p.src);
   return {
@@ -1551,7 +1586,7 @@ sidebarHTML = function(){
   }
   return `
   <div class="sidebar">
-    <div class="brand">
+    <div class="brand home-link" id="brandHome" title="Retour au tableau de bord">
       <div class="name">Gestion Précurseurs</div>
       <div class="sub">ONCF - PM - EMIC - TMLC</div>
     </div>

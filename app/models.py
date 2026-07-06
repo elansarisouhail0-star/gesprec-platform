@@ -133,6 +133,7 @@ class Photo(Base):
     content_type: Mapped[str] = mapped_column(String(120))
     path: Mapped[str] = mapped_column(String(500))
     phase: Mapped[str] = mapped_column(String(40), default="declaration", index=True)
+    data_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     declaration: Mapped[Declaration] = relationship(back_populates="photos")

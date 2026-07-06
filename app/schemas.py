@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import Audience, Category, Gravity, Role, Status
 
@@ -50,6 +50,7 @@ class PhotoOut(BaseModel):
     original_name: str
     content_type: str
     phase: str = "declaration"
+    data_url: str | None = None
     created_at: datetime
 
 
@@ -88,7 +89,7 @@ class AssignmentIn(BaseModel):
     priority: str = "Normale"
     sla_date: str | None = None
     resources: str | None = None
-    email: EmailStr | None = None
+    email: str | None = Field(default=None, max_length=1000)
 
 
 class PlanningIn(BaseModel):

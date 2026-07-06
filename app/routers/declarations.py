@@ -1,5 +1,7 @@
 from datetime import datetime
+import re
 
+from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
@@ -49,6 +51,25 @@ def parse_calendar_date(value: str | None) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def parse_email_recipients(value: str | None) -> list[str]:
+    if not value:
+        return []
+    raw_items = [item.strip() for item in re.split(r"[;,]", value) if item.strip()]
+    recipients: list[str] = []
+    invalid: list[str] = []
+    for item in raw_items:
+        try:
+            recipients.append(validate_email(item, check_deliverability=False).normalized)
+        except EmailNotValidError:
+            invalid.append(item)
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Adresse email invalide: " + ", ".join(invalid),
+        )
+    return recipients
 
 
 def load_declaration(db: Session, declaration_id: int) -> Declaration:
@@ -182,7 +203,8 @@ def assign_declaration(
     declaration.priority = payload.priority
     declaration.sla_date = payload.sla_date
     declaration.resources = payload.resources
-    declaration.assigned_email = str(payload.email) if payload.email else None
+    recipients = parse_email_recipients(payload.email)
+    declaration.assigned_email = ", ".join(recipients) if recipients else None
     declaration.assigned_at = utcnow()
     declaration.assigned_by_id = user.id
     declaration.status = Status.affecte
@@ -192,41 +214,41 @@ def assign_declaration(
         (
             f"Phase affectation - service: {payload.service}; responsable: {payload.responsible}; "
             f"priorite: {payload.priority}; date limite: {payload.sla_date or '-'}; "
-            f"destinataire email: {payload.email or '-'}"
+            f"destinataire email: {declaration.assigned_email or '-'}"
         ),
         user,
     )
     add_notification(db, declaration, f"Declaration {declaration.reference} affectee a {payload.service}", Audience.all)
-    if payload.email:
+    if recipients:
         try:
-            sent = send_email(
-                str(payload.email),
-                f"Deadline traitement - Declaration {declaration.reference}",
-                (
-                    "Bonjour,\n\n"
-                    "Une declaration Gesprec vous a ete affectee.\n\n"
-                    f"Reference: {declaration.reference}\n"
-                    f"Atelier: {declaration.atelier}\n"
-                    f"Gravite: {declaration.real_gravity}\n"
-                    f"Service: {payload.service}\n"
-                    f"Responsable: {payload.responsible}\n"
-                    f"Priorite: {payload.priority}\n"
-                    f"Date limite SLA: {payload.sla_date or '-'}\n\n"
-                    "Merci de planifier et realiser le traitement dans les delais.\n"
-                ),
+            sent_count = 0
+            body = (
+                "Bonjour,\n\n"
+                "Une declaration Gesprec vous a ete affectee.\n\n"
+                f"Reference: {declaration.reference}\n"
+                f"Atelier: {declaration.atelier}\n"
+                f"Gravite: {declaration.real_gravity}\n"
+                f"Service: {payload.service}\n"
+                f"Responsable: {payload.responsible}\n"
+                f"Priorite: {payload.priority}\n"
+                f"Date limite SLA: {payload.sla_date or '-'}\n\n"
+                "Merci de planifier et realiser le traitement dans les delais.\n"
             )
+            for recipient in recipients:
+                if send_email(recipient, f"Deadline traitement - Declaration {declaration.reference}", body):
+                    sent_count += 1
             add_history(
                 db,
                 declaration,
                 (
-                    f"Phase affectation - email deadline envoye au destinataire {payload.email}"
-                    if sent
-                    else f"Phase affectation - email deadline non envoye au destinataire {payload.email} - SMTP non configure"
+                    f"Phase affectation - email deadline envoye a {sent_count}/{len(recipients)} destinataire(s): {', '.join(recipients)}"
+                    if sent_count == len(recipients)
+                    else f"Phase affectation - email deadline non envoye a tous les destinataires ({sent_count}/{len(recipients)}) - verifier SMTP: {', '.join(recipients)}"
                 ),
                 user,
             )
         except Exception as exc:
-            add_history(db, declaration, f"Phase affectation - echec envoi email deadline au destinataire {payload.email}: {exc}", user)
+            add_history(db, declaration, f"Phase affectation - echec envoi email deadline aux destinataires {', '.join(recipients)}: {exc}", user)
     else:
         add_history(db, declaration, "Phase affectation - aucun destinataire email renseigne", user)
     db.commit()

@@ -1,3 +1,4 @@
+import base64
 import os
 from pathlib import Path
 from uuid import uuid4
@@ -40,6 +41,8 @@ async def upload_photo(
     filename = f"{declaration.reference}-{uuid4().hex}{extension}"
     file_path = upload_root / filename
     file_path.write_bytes(content)
+    encoded = base64.b64encode(content).decode("ascii")
+    data_url = f"data:{file.content_type};base64,{encoded}"
 
     db.add(
         Photo(
@@ -49,6 +52,7 @@ async def upload_photo(
             content_type=file.content_type,
             path=str(file_path),
             phase=phase,
+            data_url=data_url,
         )
     )
     phase_label = "declaration" if phase == "declaration" else "intervention realisee"

@@ -45,6 +45,8 @@ def apply_lightweight_migrations() -> None:
             photo_columns = {column["name"] for column in inspector.get_columns("photos")}
             if "phase" not in photo_columns:
                 conn.execute(text("ALTER TABLE photos ADD COLUMN phase VARCHAR(40) DEFAULT 'declaration'"))
+            if "data_url" not in photo_columns:
+                conn.execute(text("ALTER TABLE photos ADD COLUMN data_url TEXT"))
 
 
 @app.on_event("startup")
