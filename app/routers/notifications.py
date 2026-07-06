@@ -30,7 +30,7 @@ def list_notifications(
         if allowed_atelier:
             stmt = stmt.join(Notification.declaration).where(Declaration.atelier == allowed_atelier)
     else:
-        raise HTTPException(status_code=403, detail="Role non autorise")
+        raise HTTPException(status_code=403, detail="Rôle non autorisé")
     return list(db.scalars(stmt.order_by(desc(Notification.created_at)).limit(200)))
 
 
@@ -42,7 +42,7 @@ def mark_read(
 ) -> Notification:
     role = parse_role(user.role)
     if role not in HSE_ROLES and role != Role.traitement:
-        raise HTTPException(status_code=403, detail="Role non autorise")
+        raise HTTPException(status_code=403, detail="Rôle non autorisé")
     notification = db.get(Notification, notification_id)
     if not notification:
         raise HTTPException(status_code=404, detail="Notification introuvable")

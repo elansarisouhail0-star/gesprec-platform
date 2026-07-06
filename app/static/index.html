@@ -407,7 +407,7 @@ function doAffectation(id, payload){
   toast("Déclaration affectée." + (payload.email ? " Email envoyé à " + payload.email + "." : ""));
 }
 function sendDeadlineEmail(dec, email){
-  const subject = encodeURIComponent("Deadline de traitement — Déclaration " + dec.id);
+  const subject = encodeURIComponent("Date limite de traitement — Déclaration " + dec.id);
   const body = encodeURIComponent(
     "Bonjour,\n\nUne déclaration vous a été affectée pour traitement.\n\n" +
     "Référence : " + dec.id + "\n" +
@@ -418,7 +418,7 @@ function sendDeadlineEmail(dec, email){
     "Date limite (SLA) : " + dec.affectation.slaDate + "\n\n" +
     "Merci de planifier et de réaliser l'intervention avant cette échéance.\n\nCordialement."
   );
-  pushHistory(dec, "Email de notification du deadline envoyé à " + email + " (échéance : " + dec.affectation.slaDate + ")");
+  pushHistory(dec, "Email de notification de la date limite envoyé à " + email + " (échéance : " + dec.affectation.slaDate + ")");
   window.open("mailto:" + email + "?subject=" + subject + "&body=" + body, "_blank");
 }
 function doPlanification(id, payload){
@@ -520,17 +520,19 @@ async function addPdfImages(doc, title, photos, y, pageH){
 
 async function exportDeclarationsPDF(){
   if(typeof window.jspdf==="undefined"){ toast("Bibliothèque PDF indisponible."); return; }
+  const pdfDeclarations = state.declarations.filter(d=>!state.atelierScanne || d.atelier === state.atelierScanne);
+  if(pdfDeclarations.length === 0){ toast("Aucune déclaration à exporter pour ces critères."); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const pageH = doc.internal.pageSize.getHeight();
   let y = 16;
   doc.setFont("helvetica","bold"); doc.setFontSize(14);
-  doc.text("Registre des déclarations — Gestion Précurseurs (EMIC - TMLC)", 14, y); y+=6;
+  doc.text("Registre des déclarations — Gestion Précurseurs (ONCF - PM - EMIC - TMLC)", 14, y); y+=6;
   doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(90);
-  doc.text("Édité le " + nowStr() + " — " + state.declarations.length + " déclaration(s)", 14, y); y+=8;
+  doc.text("Édité le " + nowStr() + " — " + pdfDeclarations.length + " déclaration(s)", 14, y); y+=8;
   doc.setDrawColor(200);
 
-  for(const d of state.declarations){
+  for(const d of pdfDeclarations){
     if(y > pageH - 30){ doc.addPage(); y = 16; }
     doc.setTextColor(20); doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
     doc.text(d.id + "  —  " + d.atelier, 14, y); y+=5;
@@ -541,7 +543,7 @@ async function exportDeclarationsPDF(){
     doc.text(descLines, 14, y); y += descLines.length*4.2 + 1;
     if(d.affectation && d.affectation.slaDate){
       y = ensurePdfSpace(doc, y, 5, pageH);
-      doc.text("Deadline traitement : " + d.affectation.slaDate, 14, y); y+=5;
+      doc.text("Date limite de traitement : " + d.affectation.slaDate, 14, y); y+=5;
     }
     if(d.cloture){
       y = ensurePdfSpace(doc, y, 5, pageH);
@@ -549,8 +551,8 @@ async function exportDeclarationsPDF(){
     }
     const declarationPhotos = d.declarationPhotos || d.photos || [];
     const interventionPhotos = d.interventionPhotos || [];
-    y = await addPdfImages(doc, "Images jointes a la declaration", declarationPhotos, y, pageH);
-    y = await addPdfImages(doc, "Images intervention realisee", interventionPhotos, y, pageH);
+    y = await addPdfImages(doc, "Images jointes à la déclaration", declarationPhotos, y, pageH);
+    y = await addPdfImages(doc, "Images de l'intervention réalisée", interventionPhotos, y, pageH);
     doc.setDrawColor(220); doc.line(14, y, 196, y); y+=6;
   }
 
@@ -631,15 +633,15 @@ function imagePreviewHTML(){
 
 function historySummary(action){
   const a = String(action || "").toLowerCase();
-  if(a.includes("photo")) return "Une image jointe a ete ajoutee au dossier.";
-  if(a.includes("declaration")) return "La declaration a ete enregistree et integree au circuit de traitement.";
-  if(a.includes("analyse")) return "La situation a ete analysee avec la gravite, le risque et la cause probable.";
-  if(a.includes("affectation")) return "Le traitement a ete affecte avec responsable, priorite, deadline et destinataire email.";
-  if(a.includes("planification")) return "L'intervention a ete planifiee avec date, heure et moyens prevus.";
-  if(a.includes("intervention") || a.includes("realisee")) return "Les actions correctives realisees ont ete renseignees.";
-  if(a.includes("verification") || a.includes("conforme") || a.includes("cloture")) return "La verification HSE a ete effectuee et la decision de conformite a ete tracee.";
-  if(a.includes("email")) return "Une notification email a ete traitee pour cette phase.";
-  return "Action enregistree dans le suivi de la declaration.";
+  if(a.includes("photo")) return "Une image jointe a été ajoutée au dossier.";
+  if(a.includes("declaration") || a.includes("déclaration")) return "La déclaration a été enregistrée et intégrée au circuit de traitement.";
+  if(a.includes("analyse")) return "La situation a été analysée avec la gravité, le risque et la cause probable.";
+  if(a.includes("affectation")) return "Le traitement a été affecté avec le responsable, la priorité, la date limite et le destinataire email.";
+  if(a.includes("planification")) return "L'intervention a été planifiée avec la date, l'heure et les moyens prévus.";
+  if(a.includes("intervention") || a.includes("realisee") || a.includes("réalisée")) return "Les actions correctives réalisées ont été renseignées.";
+  if(a.includes("verification") || a.includes("vérification") || a.includes("conforme") || a.includes("cloture") || a.includes("clôture")) return "La vérification HSE a été effectuée et la décision de conformité a été tracée.";
+  if(a.includes("email")) return "Une notification email a été traitée pour cette phase.";
+  return "Action enregistrée dans le suivi de la déclaration.";
 }
 
 /* ---------- AUTHENTIFICATION ---------- */
@@ -914,16 +916,21 @@ function formHTML(){
 
 /* ---------- KANBAN ---------- */
 function kanbanHTML(){
+  const declarations = state.declarations.filter(d=>!state.atelierScanne || d.atelier === state.atelierScanne);
+  const filterLabel = state.atelierScanne ? ` sur ${state.atelierScanne}` : "";
   const exportBar = `<div class="section-header">
-    <div style="font-size:12.5px;color:var(--text-dim);">${state.declarations.length} déclaration(s) au total</div>
-    <button class="btn small" id="btnExportPDF" ${state.declarations.length===0?'disabled':''}>⭳ Télécharger tout (PDF — traçabilité)</button>
+    <div style="font-size:12.5px;color:var(--text-dim);">${declarations.length} déclaration(s) affichée(s)${filterLabel} / ${state.declarations.length} au total</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+      <button class="btn small" id="btnExportPDF" ${declarations.length===0?'disabled':''}>⭳ Télécharger le PDF de traçabilité</button>
+      ${state.role==="hse" ? `<button class="btn danger small" id="btnClearDeclarations" ${state.declarations.length===0?'disabled':''}>Supprimer toutes les déclarations</button>` : ""}
+    </div>
   </div>`;
-  if(state.declarations.length===0){
-    return exportBar + `<div class="panel"><div class="empty">Aucune déclaration pour le moment. Créez-en une depuis l'onglet « Nouvelle déclaration ».</div></div>`;
+  if(declarations.length===0){
+    return exportBar + `<div class="panel"><div class="empty">Aucune déclaration pour ces critères. Créez-en une depuis l'onglet « Nouvelle déclaration » ou changez le filtre atelier.</div></div>`;
   }
   return exportBar + `<div class="kanban">
     ${STATUS_ORDER.map(s=>{
-      const items = state.declarations.filter(d=>d.status===s);
+      const items = declarations.filter(d=>d.status===s);
       return `<div class="kcol">
         <h4>${STATUS_LABEL[s]} <span>${items.length}</span></h4>
         ${items.map(d=>`
@@ -957,7 +964,7 @@ function notificationsHTML(){
       <div style="font-size:12.5px;color:var(--text-dim);">${unread} non lue(s) sur ${list.length} affichée(s) / ${base.length}</div>
     </div>
     <div class="notif-filters">
-      <input type="text" id="notifRefFilter" placeholder="Rechercher par numero precurseur, ex. PRC-2026-0006" value="${state.notificationFilters.reference || ""}">
+      <input type="text" id="notifRefFilter" placeholder="Rechercher par numéro précurseur, ex. PRC-2026-0006" value="${state.notificationFilters.reference || ""}">
       <input type="date" id="notifDateFilter" value="${state.notificationFilters.date || ""}">
     </div>
     ${list.length===0 ? `<div class="empty">Aucune notification pour ces filtres.</div>` : ""}
@@ -965,7 +972,7 @@ function notificationsHTML(){
       <div class="notif-row ${n.read?'is-read':''}">
         <div>
           <div style="font-size:13.5px;">${n.message}</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${n.date} · ${n.atelier || "Atelier non defini"} · ${n.reference || ""}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${n.date} · ${n.atelier || "Atelier non défini"} · ${n.reference || ""}</div>
         </div>
         <span class="btn small ${n.read?'voir-read':'voir-unread'}" data-open="${n.declarationId}" data-notifid="${n.id}">${n.read?'✔ Vue':'Voir'}</span>
       </div>`).join("")}
@@ -1001,7 +1008,7 @@ function modalHTML(dec){
       ${actionBlockHTML(dec)}
 
       <div class="section-title">Historique</div>
-      ${dec.affectation && dec.affectation.slaDate ? `<div class="hist-detail" style="display:block;margin-bottom:10px;">Deadline traitement : ${dec.affectation.slaDate}</div>` : ""}
+      ${dec.affectation && dec.affectation.slaDate ? `<div class="hist-detail" style="display:block;margin-bottom:10px;">Date limite de traitement : ${dec.affectation.slaDate}</div>` : ""}
       <div class="hist">
         ${dec.historique.map((h,i)=>`<div class="hist-item ${state.openHistoryIndex===i?'open':''}" data-history-index="${i}">
           <b>${h.date}</b>
@@ -1042,7 +1049,7 @@ function actionBlockHTML(dec){
     </div>
     <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 techniciens, pièce détachée X"></div>
     <div class="field"><label>Emails des responsables de traitement</label><input type="text" id="af_email" placeholder="Ex. s.elansari@oncf.ma; autre@oncf.ma"></div>
-    <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et envoyer le deadline par email</button>`;
+    <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et envoyer la date limite par email</button>`;
   }
   // Traitement: planification
   if(role==="traitement" && dec.status==="affecte"){
@@ -1171,6 +1178,24 @@ function bindEvents(){
   });
   const btnExportPDF = document.getElementById("btnExportPDF");
   if(btnExportPDF) btnExportPDF.onclick = exportDeclarationsPDF;
+  const btnClearDeclarations = document.getElementById("btnClearDeclarations");
+  if(btnClearDeclarations) btnClearDeclarations.onclick = async ()=>{
+    const password = prompt("Saisissez le mot de passe HSE pour confirmer la remise à zéro de la plateforme.");
+    if(!password) return;
+    const ok = confirm("Cette action supprimera définitivement toutes les déclarations et leurs historiques. Confirmez-vous la remise à zéro ?");
+    if(!ok) return;
+    try{
+      await api("/declarations", {method:"DELETE", body:JSON.stringify({password})});
+      state.declarations = [];
+      state.notifications = [];
+      state.openId = null;
+      await refreshData();
+      render();
+      toast("Toutes les déclarations ont été supprimées.");
+    }catch(e){
+      toast(e.message || "Suppression impossible.");
+    }
+  };
   const closeM = document.getElementById("closeModal");
   if(closeM) closeM.onclick = ()=>{ state.openId = null; state.openHistoryIndex = null; render(); };
   const overlay = document.getElementById("overlay");
@@ -1219,7 +1244,7 @@ function bindEvents(){
       return;
     }
     if(deadlineDate && plannedDate > deadlineDate){
-      toast("La date de planification ne peut pas depasser la deadline.");
+      toast("La date de planification ne peut pas dépasser la date limite.");
       return;
     }
     doPlanification(btnPlanifier.dataset.id, {
@@ -1236,15 +1261,15 @@ function bindEvents(){
     const plannedDate = calendarDateValue(dec && dec.planification && dec.planification.date);
     const deadlineDate = calendarDateValue(dec && dec.affectation && dec.affectation.slaDate);
     if(!interventionDate){
-      toast("Merci de choisir la date de realisation.");
+      toast("Merci de choisir la date de réalisation.");
       return;
     }
     if(plannedDate && interventionDate < plannedDate){
-      toast("La date de realisation ne peut pas etre avant la date de planification.");
+      toast("La date de réalisation ne peut pas être antérieure à la date de planification.");
       return;
     }
     if(deadlineDate && interventionDate > deadlineDate){
-      toast("La date de realisation ne peut pas depasser la deadline.");
+      toast("La date de réalisation ne peut pas dépasser la date limite.");
       return;
     }
     doIntervention(btnIntervention.dataset.id, {
@@ -1458,7 +1483,7 @@ async function refreshData(){
       state.users = await api("/auth/users").catch(()=>[]);
     }
   }catch(e){
-    toast(e.message || "Impossible de charger les donnees.");
+    toast(e.message || "Impossible de charger les données.");
   }
 }
 
@@ -1479,10 +1504,10 @@ isHSERole = function(r){
 
 roleLabel = function(r){
   return {
-    declarant:"Declarant",
+    declarant:"Déclarant",
     hse:"Responsable HSE",
     chef_technicentre_tmlc:"Chef de technicentre TMLC",
-    chef_etablissement:"Chef d'etablissement",
+    chef_etablissement:"Chef d'établissement",
     coordination:"Responsable Coordination",
     traitement:"Responsable Traitement"
   }[r] || r;
@@ -1491,21 +1516,21 @@ roleLabel = function(r){
 loginGateHTML = function(){
   const selectedRole = state.loginSelectedRole;
   const roles = [
-    {k:"declarant", icon:"✚", name:"Declarant", desc:"Emettre une declaration"},
-    {k:"hse", icon:"▣", name:"Responsable HSE", desc:"Workflow"},
-    {k:"chef_technicentre_tmlc", icon:"▤", name:"Chef technicentre TMLC", desc:"Workflow"},
-    {k:"chef_etablissement", icon:"▦", name:"Chef etablissement", desc:"Tableau de bord"},
-    {k:"coordination", icon:"◇", name:"Resp. Coordination", desc:"Workflow"},
-    {k:"traitement", icon:"⚙", name:"Resp. Traitement", desc:"Traitement"},
+    {k:"declarant", icon:"✚", name:"Déclarant", desc:"Émettre une déclaration"},
+    {k:"hse", icon:"▣", name:"Responsable HSE", desc:"Circuit de traitement"},
+    {k:"chef_technicentre_tmlc", icon:"▤", name:"Chef de technicentre TMLC", desc:"Circuit de traitement"},
+    {k:"chef_etablissement", icon:"▦", name:"Chef d'établissement", desc:"Tableau de bord"},
+    {k:"coordination", icon:"◇", name:"Responsable Coordination", desc:"Circuit de traitement"},
+    {k:"traitement", icon:"⚙", name:"Responsable Traitement", desc:"Traitement"},
   ];
   return `
   <div class="login-wrap">
     <div class="login-card">
       <div class="brand" style="justify-content:center;">
         ${brandMarkHTML()}
-        <div><div class="name">Gestion Precurseurs</div><div class="sub">EMIC - TMLC</div></div>
+        <div><div class="name">Gestion Précurseurs</div><div class="sub">ONCF - PM - EMIC - TMLC</div></div>
       </div>
-      <div class="login-sub">Selectionnez votre profil pour continuer</div>
+      <div class="login-sub">Sélectionnez votre profil pour continuer</div>
       <div class="role-grid">
         ${roles.map(r=>`
           <div class="role-card ${selectedRole===r.k?'sel':''}" data-role="${r.k}">
@@ -1515,7 +1540,7 @@ loginGateHTML = function(){
           </div>`).join("")}
       </div>
       ${selectedRole==="declarant" ? `
-        <button class="btn" id="btnEnterDeclarant" style="width:100%;">Acceder au formulaire de declaration</button>
+        <button class="btn" id="btnEnterDeclarant" style="width:100%;">Accéder au formulaire de déclaration</button>
       ` : selectedRole ? `
         <div class="login-fields">
           <div class="field"><label>Email</label><input type="text" id="loginUser" placeholder="ex. hse@gesprec.local"></div>
@@ -1574,7 +1599,7 @@ sidebarHTML = function(){
   const unread = state.notifications.filter(n=>!n.read && notifVisibleTo(n, role)).length;
   let items = [{k:"dashboard", label:"Tableau de bord", icon:"▦"}];
   if(isHSERole(role)){
-    items.push({k:"declarations", label:"Declarations", icon:"☰"});
+    items.push({k:"declarations", label:"Déclarations", icon:"☰"});
     items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
     items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
     if(role==="hse") items.push({k:"utilisateurs", label:"Utilisateurs", icon:"◉"});
@@ -1596,9 +1621,9 @@ sidebarHTML = function(){
         ${it.badge?`<span class="badge">${it.badge}</span>`:""}
       </div>`).join("")}
     <div class="sidebar-footer">
-      <div class="role-box">Connecte en tant que</div>
+      <div class="role-box">Connecté en tant que</div>
       <div class="current-role">${roleLabel(role)}</div>
-      <div class="logout-btn" id="logoutBtn">Deconnexion</div>
+      <div class="logout-btn" id="logoutBtn">Déconnexion</div>
     </div>
   </div>`;
 };
@@ -1635,7 +1660,7 @@ function usersHTML(){
   const roles = [
     ["hse","Responsable HSE"],
     ["chef_technicentre_tmlc","Chef de technicentre TMLC"],
-    ["chef_etablissement","Chef d'etablissement"],
+    ["chef_etablissement","Chef d'établissement"],
     ["coordination","Responsable Coordination"],
     ["traitement","Responsable Traitement"]
   ];
@@ -1733,7 +1758,7 @@ bindEvents = function(){
         await api("/auth/users/" + u.id, {method:"DELETE"});
         await refreshData();
         render();
-        toast("Utilisateur supprime.");
+      toast("Utilisateur supprimé.");
       }catch(e){ toast(e.message || "Suppression impossible."); }
     };
   });
@@ -1756,7 +1781,7 @@ bindEvents = function(){
     try{
       if(id) await api("/auth/users/" + id, {method:"PATCH", body:JSON.stringify(payload)});
       else await api("/auth/users", {method:"POST", body:JSON.stringify({...payload, password: password || "ChangeMe123!"})});
-      await refreshData(); render(); toast("Utilisateur enregistre.");
+      await refreshData(); render(); toast("Utilisateur enregistré.");
     }catch(e){ toast(e.message || "Enregistrement impossible."); }
   };
   const changeMine = document.getElementById("btnChangeMyPassword");
@@ -1766,14 +1791,14 @@ bindEvents = function(){
         current_password: document.getElementById("my_current_password").value,
         new_password: document.getElementById("my_new_password").value
       })});
-      toast("Mot de passe change.");
+      toast("Mot de passe changé.");
     }catch(e){ toast(e.message || "Changement impossible."); }
   };
   const testEmail = document.getElementById("btnTestEmail");
   if(testEmail) testEmail.onclick = async ()=>{
     try{
       const r = await api("/system/email-test", {method:"POST", body:JSON.stringify({to_email: document.getElementById("test_email_to").value.trim()})});
-      toast(r.sent ? "Email test envoye." : "SMTP non configure.");
+      toast(r.sent ? "Email de test envoyé." : "SMTP non configuré.");
     }catch(e){ toast(e.message || "Test email impossible."); }
   };
 };
@@ -1869,7 +1894,7 @@ submitDeclaration = async function(){
     state.form = emptyForm();
     if(state.role !== "declarant") await refreshData();
     render();
-    toast("Declaration " + (created.reference || created.id) + " envoyee.");
+    toast("Déclaration " + (created.reference || created.id) + " envoyée.");
   }catch(e){ toast(e.message || "Envoi impossible."); }
 };
 
@@ -1882,7 +1907,7 @@ doAnalyse = async function(id, payload){
       probable_cause: payload.causeProbable,
       comment: payload.commentaire
     })});
-    await refreshData(); render(); toast("Analyse enregistree.");
+    await refreshData(); render(); toast("Analyse enregistrée.");
   }catch(e){ toast(e.message || "Analyse impossible."); }
 };
 
@@ -1897,7 +1922,7 @@ doAffectation = async function(id, payload){
       resources: payload.ressources,
       email: payload.email || null
     })});
-    await refreshData(); render(); toast("Declaration affectee.");
+    await refreshData(); render(); toast("Déclaration affectée.");
   }catch(e){ toast(e.message || "Affectation impossible."); }
 };
 
@@ -1911,7 +1936,7 @@ doPlanification = async function(id, payload){
       return;
     }
     if(deadlineDate && plannedDate > deadlineDate){
-      toast("La date de planification ne peut pas depasser la deadline.");
+      toast("La date de planification ne peut pas dépasser la date limite.");
       return;
     }
     await api("/declarations/" + dec.apiId + "/planification", {method:"POST", body:JSON.stringify({
@@ -1920,7 +1945,7 @@ doPlanification = async function(id, payload){
       technicians: payload.techniciens,
       material: payload.materiel
     })});
-    await refreshData(); render(); toast("Intervention planifiee.");
+    await refreshData(); render(); toast("Intervention planifiée.");
   }catch(e){ toast(e.message || "Planification impossible."); }
 };
 
@@ -1930,11 +1955,11 @@ doIntervention = async function(id, payload){
     const plannedDate = calendarDateValue(dec.planification && dec.planification.date);
     const deadlineDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
     if(plannedDate && payload.interventionDate && payload.interventionDate < plannedDate){
-      toast("La date de realisation ne peut pas etre avant la date de planification.");
+      toast("La date de réalisation ne peut pas être antérieure à la date de planification.");
       return;
     }
     if(deadlineDate && payload.interventionDate && payload.interventionDate > deadlineDate){
-      toast("La date de realisation ne peut pas depasser la deadline.");
+      toast("La date de réalisation ne peut pas dépasser la date limite.");
       return;
     }
     await api("/declarations/" + dec.apiId + "/intervention", {method:"POST", body:JSON.stringify({
@@ -1947,7 +1972,7 @@ doIntervention = async function(id, payload){
     if(payload.photos && payload.photos.length){
       await uploadPhotoFiles(dec.apiId, payload.photos);
     }
-    await refreshData(); render(); toast("Intervention enregistree.");
+    await refreshData(); render(); toast("Intervention enregistrée.");
   }catch(e){ toast(e.message || "Intervention impossible."); }
 };
 
@@ -1958,7 +1983,7 @@ doVerification = async function(id, conforme, commentaire){
       conform: conforme,
       comment: commentaire
     })});
-    await refreshData(); render(); toast(conforme ? "Dossier cloture." : "Retour en planification.");
+    await refreshData(); render(); toast(conforme ? "Dossier clôturé." : "Retour en planification.");
   }catch(e){ toast(e.message || "Verification impossible."); }
 };
 

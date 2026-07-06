@@ -55,7 +55,7 @@ async def upload_photo(
             data_url=data_url,
         )
     )
-    phase_label = "declaration" if phase == "declaration" else "intervention realisee"
-    add_history(db, declaration, f"Photo ajoutee ({phase_label}): {file.filename}", user)
+    phase_label = "déclaration" if phase == "declaration" else "intervention réalisée"
+    add_history(db, declaration, f"Photo ajoutée ({phase_label}) : {file.filename}", user)
     db.commit()
     return load_declaration(db, declaration_id)

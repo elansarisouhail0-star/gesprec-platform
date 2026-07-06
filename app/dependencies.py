@@ -17,7 +17,7 @@ def parse_role(value: str) -> Role:
     try:
         return Role(value)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role obsolete ou non autorise")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle obsolète ou non autorisé")
 
 
 def get_current_user(
@@ -56,7 +56,7 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
 
     def dependency(user: User = Depends(get_current_user)) -> User:
         if parse_role(user.role) not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role non autorise")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle non autorisé")
         return user
 
     return dependency
@@ -64,5 +64,5 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
 
 def require_hse_group(user: User = Depends(get_current_user)) -> User:
     if parse_role(user.role) not in HSE_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role HSE/Chef/Coordination requis")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle HSE, Chef ou Coordination requis")
     return user

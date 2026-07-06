@@ -17,8 +17,10 @@ from app.schemas import (
     DeclarationOut,
     InterventionIn,
     PlanningIn,
+    ResetDeclarationsIn,
     VerificationIn,
 )
+from app.security import verify_password
 from app.services import add_history, add_notification, next_reference
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
@@ -39,7 +41,7 @@ def assert_treatment_atelier_access(user: User, declaration: Declaration) -> Non
         return
     allowed_atelier = treatment_atelier(user)
     if allowed_atelier and declaration.atelier != allowed_atelier:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Atelier non autorise pour ce responsable traitement")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Atelier non autorisé pour ce responsable traitement")
 
 
 def parse_calendar_date(value: str | None) -> datetime | None:
@@ -79,7 +81,7 @@ def load_declaration(db: Session, declaration_id: int) -> Declaration:
         .options(selectinload(Declaration.photos), selectinload(Declaration.history))
     )
     if not declaration:
-        raise HTTPException(status_code=404, detail="Declaration introuvable")
+        raise HTTPException(status_code=404, detail="Déclaration introuvable")
     return declaration
 
 
@@ -115,11 +117,11 @@ def create_declaration(
     db.add(declaration)
     db.flush()
     prefix = "CRITIQUE - " if payload.gravity == Gravity.critique else ""
-    add_history(db, declaration, f"Phase declaration - declaration creee sur {declaration.atelier}", user)
+    add_history(db, declaration, f"Phase déclaration - déclaration créée sur {declaration.atelier}", user)
     add_notification(
         db,
         declaration,
-        f"{prefix}Nouvelle declaration {declaration.reference} ({declaration.category}) sur {declaration.atelier}",
+        f"{prefix}Nouvelle déclaration {declaration.reference} ({declaration.category}) sur {declaration.atelier}",
         Audience.admin,
     )
     db.commit()
@@ -152,6 +154,21 @@ def list_declarations(
     return list(db.scalars(stmt.order_by(desc(Declaration.created_at)).limit(limit)))
 
 
+@router.delete("", status_code=204)
+def delete_all_declarations(
+    payload: ResetDeclarationsIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_hse_group),
+) -> None:
+    if not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe HSE incorrect")
+    declarations = list(db.scalars(select(Declaration)))
+    for declaration in declarations:
+        db.delete(declaration)
+    db.commit()
+    return None
+
+
 @router.get("/{declaration_id}", response_model=DeclarationOut)
 def get_declaration(
     declaration_id: int,
@@ -182,7 +199,7 @@ def analyse_declaration(
     add_history(
         db,
         declaration,
-        f"Phase analyse - gravite retenue: {payload.real_gravity.value}; risque: {payload.risk_type}; cause probable: {payload.probable_cause or '-'}",
+        f"Phase analyse - gravité retenue : {payload.real_gravity.value}; risque : {payload.risk_type}; cause probable : {payload.probable_cause or '-'}",
         user,
     )
     db.commit()
@@ -213,44 +230,44 @@ def assign_declaration(
         declaration,
         (
             f"Phase affectation - service: {payload.service}; responsable: {payload.responsible}; "
-            f"priorite: {payload.priority}; date limite: {payload.sla_date or '-'}; "
-            f"destinataire email: {declaration.assigned_email or '-'}"
+            f"priorité : {payload.priority}; date limite : {payload.sla_date or '-'}; "
+            f"destinataire email : {declaration.assigned_email or '-'}"
         ),
         user,
     )
-    add_notification(db, declaration, f"Declaration {declaration.reference} affectee a {payload.service}", Audience.all)
+    add_notification(db, declaration, f"Déclaration {declaration.reference} affectée à {payload.service}", Audience.all)
     if recipients:
         try:
             sent_count = 0
             body = (
                 "Bonjour,\n\n"
-                "Une declaration Gesprec vous a ete affectee.\n\n"
-                f"Reference: {declaration.reference}\n"
-                f"Atelier: {declaration.atelier}\n"
-                f"Gravite: {declaration.real_gravity}\n"
-                f"Service: {payload.service}\n"
-                f"Responsable: {payload.responsible}\n"
-                f"Priorite: {payload.priority}\n"
-                f"Date limite SLA: {payload.sla_date or '-'}\n\n"
-                "Merci de planifier et realiser le traitement dans les delais.\n"
+                "Une déclaration Gesprec vous a été affectée.\n\n"
+                f"Référence : {declaration.reference}\n"
+                f"Atelier : {declaration.atelier}\n"
+                f"Gravité : {declaration.real_gravity}\n"
+                f"Service : {payload.service}\n"
+                f"Responsable : {payload.responsible}\n"
+                f"Priorité : {payload.priority}\n"
+                f"Date limite SLA : {payload.sla_date or '-'}\n\n"
+                "Merci de planifier et réaliser le traitement dans les délais.\n"
             )
             for recipient in recipients:
-                if send_email(recipient, f"Deadline traitement - Declaration {declaration.reference}", body):
+                if send_email(recipient, f"Date limite de traitement - Déclaration {declaration.reference}", body):
                     sent_count += 1
             add_history(
                 db,
                 declaration,
                 (
-                    f"Phase affectation - email deadline envoye a {sent_count}/{len(recipients)} destinataire(s): {', '.join(recipients)}"
+                    f"Phase affectation - email de date limite envoyé à {sent_count}/{len(recipients)} destinataire(s) : {', '.join(recipients)}"
                     if sent_count == len(recipients)
-                    else f"Phase affectation - email deadline non envoye a tous les destinataires ({sent_count}/{len(recipients)}) - verifier SMTP: {', '.join(recipients)}"
+                    else f"Phase affectation - email de date limite non envoyé à tous les destinataires ({sent_count}/{len(recipients)}) - vérifier SMTP : {', '.join(recipients)}"
                 ),
                 user,
             )
         except Exception as exc:
-            add_history(db, declaration, f"Phase affectation - echec envoi email deadline aux destinataires {', '.join(recipients)}: {exc}", user)
+            add_history(db, declaration, f"Phase affectation - échec de l'envoi de l'email de date limite aux destinataires {', '.join(recipients)} : {exc}", user)
     else:
-        add_history(db, declaration, "Phase affectation - aucun destinataire email renseigne", user)
+        add_history(db, declaration, "Phase affectation - aucun destinataire email renseigné", user)
     db.commit()
     return load_declaration(db, declaration_id)
 
@@ -272,7 +289,7 @@ def plan_declaration(
     if deadline_date and planned_date > deadline_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La date de planification ne peut pas etre superieure a la date limite",
+            detail="La date de planification ne peut pas être supérieure à la date limite",
         )
     declaration.planned_date = payload.date
     declaration.planned_time = payload.time
@@ -284,10 +301,10 @@ def plan_declaration(
     add_history(
         db,
         declaration,
-        f"Phase planification - intervention planifiee le {payload.date} a {payload.time}; techniciens: {payload.technicians or '-'}; materiel: {payload.material or '-'}",
+        f"Phase planification - intervention planifiée le {payload.date} à {payload.time}; techniciens : {payload.technicians or '-'}; matériel : {payload.material or '-'}",
         user,
     )
-    add_notification(db, declaration, f"Declaration {declaration.reference} planifiee", Audience.admin)
+    add_notification(db, declaration, f"Déclaration {declaration.reference} planifiée", Audience.admin)
     db.commit()
     return load_declaration(db, declaration_id)
 
@@ -306,16 +323,16 @@ def complete_intervention(
     planned_date = parse_calendar_date(declaration.planned_date)
     intervention_date = parse_calendar_date(payload.intervention_date)
     if not intervention_date:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date de realisation obligatoire")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date de réalisation obligatoire")
     if planned_date and intervention_date < planned_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La date de realisation ne peut pas etre inferieure a la date de planification",
+            detail="La date de réalisation ne peut pas être inférieure à la date de planification",
         )
     if deadline_date and intervention_date > deadline_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La date de realisation ne peut pas etre superieure a la date limite",
+            detail="La date de réalisation ne peut pas être supérieure à la date limite",
         )
     declaration.intervention_actions = payload.actions
     declaration.intervention_minutes = payload.minutes
@@ -328,10 +345,10 @@ def complete_intervention(
     add_history(
         db,
         declaration,
-        f"Phase intervention - actions correctives realisees le {payload.intervention_date}; duree: {payload.days} jour(s); difficultes: {payload.difficulties or '-'}",
+        f"Phase intervention - actions correctives réalisées le {payload.intervention_date}; durée : {payload.days} jour(s); difficultés : {payload.difficulties or '-'}",
         user,
     )
-    add_notification(db, declaration, f"Declaration {declaration.reference} prete pour verification", Audience.admin)
+    add_notification(db, declaration, f"Déclaration {declaration.reference} prête pour vérification", Audience.admin)
     db.commit()
     return load_declaration(db, declaration_id)
 
@@ -351,11 +368,11 @@ def verify_declaration(
     if payload.conform:
         declaration.status = Status.cloture
         declaration.closed_at = utcnow()
-        add_history(db, declaration, f"Phase verification - conforme; declaration cloturee; commentaire: {payload.comment or '-'}", user)
-        add_notification(db, declaration, f"Declaration {declaration.reference} conforme et cloturee", Audience.all)
+        add_history(db, declaration, f"Phase vérification - conforme; déclaration clôturée; commentaire : {payload.comment or '-'}", user)
+        add_notification(db, declaration, f"Déclaration {declaration.reference} conforme et clôturée", Audience.all)
     else:
         declaration.status = Status.planifie
-        add_history(db, declaration, f"Phase verification - non conforme; replanification demandee; commentaire: {payload.comment or '-'}", user)
-        add_notification(db, declaration, f"Declaration {declaration.reference} non conforme - replanification requise", Audience.all)
+        add_history(db, declaration, f"Phase vérification - non conforme; replanification demandée; commentaire : {payload.comment or '-'}", user)
+        add_notification(db, declaration, f"Déclaration {declaration.reference} non conforme - replanification requise", Audience.all)
     db.commit()
     return load_declaration(db, declaration_id)

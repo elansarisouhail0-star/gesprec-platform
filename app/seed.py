@@ -8,7 +8,7 @@ from app.security import hash_password
 DEFAULT_USERS = [
     ("hse@gesprec.local", "Responsable HSE", Role.hse, "Hse12345!"),
     ("chef@gesprec.local", "Chef de technicentre TMLC", Role.chef_technicentre_tmlc, "Chef12345!"),
-    ("etablissement@gesprec.local", "Chef d'etablissement", Role.chef_etablissement, "Etab12345!"),
+    ("etablissement@gesprec.local", "Chef d'établissement", Role.chef_etablissement, "Etab12345!"),
     ("coordination@gesprec.local", "Responsable Coordination", Role.coordination, "Coord12345!"),
     ("traitement@gesprec.local", "Responsable Traitement principal", Role.traitement, "Trait12345!"),
     ("traitement1@gesprec.local", "Responsable Traitement 1", Role.traitement, "Trait112345!"),

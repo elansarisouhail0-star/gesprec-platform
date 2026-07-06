@@ -22,7 +22,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     try:
         Role(user.role)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role obsolete ou non autorise")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle obsolète ou non autorisé")
     return Token(access_token=create_access_token(str(user.id)), user=UserOut.model_validate(user))
 
 
@@ -34,7 +34,7 @@ def create_user(
 ) -> User:
     exists = db.scalar(select(User).where(User.email == payload.email))
     if exists:
-        raise HTTPException(status_code=409, detail="Email deja utilise")
+        raise HTTPException(status_code=409, detail="Email déjà utilisé")
     user = User(
         email=str(payload.email),
         full_name=payload.full_name,
@@ -68,7 +68,7 @@ def update_user(
     if payload.email and payload.email != user.email:
         exists = db.scalar(select(User).where(User.email == payload.email))
         if exists:
-            raise HTTPException(status_code=409, detail="Email deja utilise")
+            raise HTTPException(status_code=409, detail="Email déjà utilisé")
         user.email = payload.email
     if payload.full_name is not None:
         user.full_name = payload.full_name

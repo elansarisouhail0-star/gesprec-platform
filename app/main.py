@@ -16,7 +16,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
-    description="Backend API pour la plateforme Gestion Precurseurs EMIC - TMLC.",
+    description="Backend API pour la plateforme Gestion Précurseurs ONCF - PM - EMIC - TMLC.",
 )
 
 app.add_middleware(
