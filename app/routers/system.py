@@ -12,12 +12,17 @@ from app.emailer import send_email, smtp_enabled
 from app.constants import split_multi
 from app.models import Declaration, HistoryEvent, Role, Status, User
 from app.routers.declarations import deadline_whatsapp_message, send_or_trace_whatsapp
+from app.whatsapp import send_whatsapp_message, whatsapp_enabled, whatsapp_link
 
 router = APIRouter(prefix="/system", tags=["system"])
 
 
 class EmailTestIn(BaseModel):
     to_email: str = Field(min_length=3, max_length=255)
+
+
+class WhatsAppTestIn(BaseModel):
+    phone_number: str = Field(min_length=6, max_length=40)
 
 
 @router.get("/email-status")
@@ -44,6 +49,29 @@ def email_test(payload: EmailTestIn, _: User = Depends(require_roles(Role.hse)))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Echec SMTP: {exc}")
     return {"sent": sent}
+
+
+@router.get("/whatsapp-status")
+def whatsapp_status(_: User = Depends(require_roles(Role.hse))) -> dict[str, bool]:
+    settings = get_settings()
+    return {
+        "whatsapp_enabled": whatsapp_enabled(),
+        "token_configured": bool(settings.whatsapp_token),
+        "phone_number_id_configured": bool(settings.whatsapp_phone_number_id),
+    }
+
+
+@router.post("/whatsapp-test")
+def whatsapp_test(payload: WhatsAppTestIn, _: User = Depends(require_roles(Role.hse))) -> dict[str, bool | str]:
+    message = "Test WhatsApp Gesprec: la configuration de notification fonctionne."
+    try:
+        sent = send_whatsapp_message(payload.phone_number, message)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Echec WhatsApp: {exc}")
+    return {
+        "sent": sent,
+        "manual_link": "" if sent else whatsapp_link(payload.phone_number, message),
+    }
 
 
 @router.post("/whatsapp-reminders")

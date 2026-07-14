@@ -430,6 +430,7 @@ let state = {
   openHistoryIndex: null,
   previewImage: null,
   currentUser: null,
+  whatsappStatus: null,
   fromQrScan: false,
   form: emptyForm()
 };
@@ -765,62 +766,30 @@ function dashboardSnapshotImage(declarations, snapshotRows){
 }
 
 async function exportDeclarationsExcel(){
-  const rows = [...state.declarations];
-  if(rows.length === 0){ toast("Aucune déclaration à exporter pour ces critères."); return; }
-  const snapshot = dashboardSnapshotRows(rows).map(r=>`<tr><td>${excelEscape(r[0])}</td><td>${excelEscape(r[1])}</td></tr>`).join("");
-  const snapshotImage = dashboardSnapshotImage(rows, snapshot);
-  const bodyRowParts = [];
-  for(const d of rows){
-    const declarationImages = await excelImagesHTML(d.declarationPhotos || d.photos);
-    const interventionImages = await excelImagesHTML(d.interventionPhotos);
-    bodyRowParts.push(`
-    <tr>
-      <td>${excelEscape(d.id)}</td>
-      <td>${excelEscape(d.description)}</td>
-      <td>${excelEscape(d.atelier)}</td>
-      <td>${excelEscape(d.categorie)}</td>
-      <td>${excelEscape(gInfo(d.graviteReelle).label)}</td>
-      <td>${excelEscape(STATUS_LABEL[d.status] || d.status)}</td>
-      <td>${excelEscape(d.dateCreation)}</td>
-      <td>${excelEscape((d.affectation && d.affectation.slaDate) || "")}</td>
-      <td>${excelEscape((d.cloture && d.cloture.dateCloture) || "")}</td>
-      <td>${declarationImages}</td>
-      <td>${interventionImages}</td>
-    </tr>`);
+  const rows = state.declarations.filter(d=>!state.atelierScanne || d.atelier === state.atelierScanne);
+  if(rows.length === 0){ toast("Aucune declaration a exporter pour ces criteres."); return; }
+  const params = new URLSearchParams();
+  if(state.atelierScanne) params.set("atelier", state.atelierScanne);
+  const headers = {};
+  if(apiToken) headers.Authorization = "Bearer " + apiToken;
+  try{
+    const res = await fetch(API_BASE + "/declarations/export.xlsx" + (params.toString() ? "?" + params.toString() : ""), {headers});
+    if(!res.ok){
+      const raw = await res.text();
+      throw new Error(raw || "Export Excel impossible.");
+    }
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "archive_precurseurs_" + Date.now() + ".xlsx";
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    link.remove();
+    toast("Fichier Excel avec images genere.");
+  }catch(e){
+    toast(e.message || "Export Excel impossible.");
   }
-  const bodyRows = bodyRowParts.join("");
-  const html = `<!doctype html>
-  <html><head><meta charset="utf-8">
-  <style>
-    body{font-family:Arial,sans-serif;}
-    h1,h2{color:#8f2f0b;}
-    table{border-collapse:collapse;width:100%;margin-bottom:18px;}
-    th{background:#ff6a2b;color:#fff;}
-    th,td{border:1px solid #999;padding:7px;vertical-align:top;}
-  </style></head><body>
-    <h1>Archive Excel - Gestion Précurseurs</h1>
-    <h2>Capture du tableau de bord</h2>
-    <img src="${snapshotImage}" width="900" height="280">
-    <h2>Instantané du tableau de bord</h2>
-    <table>${snapshot}</table>
-    <h2>Déclarations</h2>
-    <table>
-      <thead><tr>
-        <th>Numéro précurseur</th><th>Nom précurseur</th><th>Atelier ciblé</th><th>Catégorie</th><th>Gravité</th><th>Statut</th>
-        <th>Date création</th><th>Date limite traitement</th><th>Date clôture</th><th>Images jointes à la déclaration</th><th>Images après intervention</th>
-      </tr></thead>
-      <tbody>${bodyRows}</tbody>
-    </table>
-  </body></html>`;
-  const blob = new Blob(["\ufeff", html], {type:"application/vnd.ms-excel;charset=utf-8"});
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "archive_precurseurs_" + Date.now() + ".xls";
-  document.body.appendChild(link);
-  link.click();
-  URL.revokeObjectURL(link.href);
-  link.remove();
-  toast("Fichier Excel généré.");
 }
 
 let toastTimer=null;
@@ -1779,6 +1748,9 @@ async function refreshData(){
     state.notifications = notifications.map(mapNotification);
     if(isHSERole(state.role)){
       state.users = await api("/auth/users").catch(()=>[]);
+      if(state.role === "hse"){
+        state.whatsappStatus = await api("/system/whatsapp-status").catch(()=>null);
+      }
     }
   }catch(e){
     toast(e.message || "Impossible de charger les données.");
@@ -1948,6 +1920,8 @@ function qrCodesHTML(){
 
 function usersHTML(){
   const users = state.users || [];
+  const wa = state.whatsappStatus || {};
+  const waReady = !!wa.whatsapp_enabled;
   const roles = [
     ["hse","Responsable QSSE"],
     ["chef_technicentre_tmlc","Chef de technicentre TMLC"],
@@ -2003,6 +1977,15 @@ function usersHTML(){
       <div class="field" style="display:flex;align-items:end;"><button class="btn small" id="btnTestEmail">Envoyer test</button></div>
     </div>
     <div class="section-title">Rappels WhatsApp</div>
+    <div class="hist-detail" style="display:block;margin-bottom:10px;">
+      Statut WhatsApp : <b>${waReady ? "configure" : "non configure"}</b><br>
+      Token Meta : ${wa.token_configured ? "OK" : "manquant"} - Phone Number ID : ${wa.phone_number_id_configured ? "OK" : "manquant"}<br>
+      Variables Railway a renseigner : WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID.
+    </div>
+    <div class="row2">
+      <div class="field"><label>Numero WhatsApp de test</label><input type="text" id="test_whatsapp_to" placeholder="ex. +212600000000"></div>
+      <div class="field" style="display:flex;align-items:end;"><button class="btn small" id="btnTestWhatsapp">Envoyer test WhatsApp</button></div>
+    </div>
     <button class="btn small" id="btnWhatsappReminders">Envoyer les rappels J-1</button>
   </div>`;
 }
@@ -2108,6 +2091,22 @@ bindEvents = function(){
       const r = await api("/system/email-test", {method:"POST", body:JSON.stringify({to_email: document.getElementById("test_email_to").value.trim()})});
       toast(r.sent ? "Email de test envoyé." : "SMTP non configuré.");
     }catch(e){ toast(e.message || "Test email impossible."); }
+  };
+  const testWhatsapp = document.getElementById("btnTestWhatsapp");
+  if(testWhatsapp) testWhatsapp.onclick = async ()=>{
+    const phone = (document.getElementById("test_whatsapp_to").value || "").trim();
+    if(!phone){ toast("Saisissez un numero WhatsApp de test."); return; }
+    try{
+      const r = await api("/system/whatsapp-test", {method:"POST", body:JSON.stringify({phone_number: phone})});
+      if(r.sent){
+        toast("Message WhatsApp de test envoye.");
+      }else if(r.manual_link){
+        window.open(r.manual_link, "_blank");
+        toast("WhatsApp automatique non configure. Lien manuel ouvert.");
+      }else{
+        toast("WhatsApp automatique non configure.");
+      }
+    }catch(e){ toast(e.message || "Test WhatsApp impossible."); }
   };
   const whatsappReminders = document.getElementById("btnWhatsappReminders");
   if(whatsappReminders) whatsappReminders.onclick = async ()=>{

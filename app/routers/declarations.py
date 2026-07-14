@@ -1,8 +1,10 @@
 from datetime import datetime
+from io import BytesIO
 import re
 
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -10,6 +12,7 @@ from app.constants import split_multi
 from app.database import get_db
 from app.dependencies import get_optional_user, require_hse_group, require_roles
 from app.emailer import send_email
+from app.excel_export import build_declarations_xlsx
 from app.models import Audience, Category, Declaration, Gravity, Role, Status, User, utcnow
 from app.schemas import (
     AnalysisIn,
@@ -224,6 +227,25 @@ def list_declarations(
     if gravity:
         stmt = stmt.where(Declaration.real_gravity == gravity)
     return list(db.scalars(stmt.order_by(desc(Declaration.created_at)).limit(limit)))
+
+
+@router.get("/export.xlsx")
+def export_declarations_xlsx(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_hse_group),
+    atelier: str | None = None,
+) -> StreamingResponse:
+    stmt = select(Declaration).options(selectinload(Declaration.photos), selectinload(Declaration.history))
+    if atelier:
+        stmt = stmt.where(Declaration.atelier == atelier)
+    declarations = list(db.scalars(stmt.order_by(desc(Declaration.created_at))).unique())
+    content = build_declarations_xlsx(declarations)
+    filename = f"archive_precurseurs_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.delete("", status_code=204)

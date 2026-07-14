@@ -163,6 +163,23 @@ WHATSAPP_PHONE_NUMBER_ID=votre_phone_number_id
 
 Sans ces variables, Gesprec conserve les traces et genere des liens `wa.me` dans l'historique, mais l'envoi automatique ne part pas.
 
+Configuration rapide:
+
+1. Dans Meta for Developers, ouvrir l'application WhatsApp Cloud API.
+2. Copier le `Phone number ID` du numero emetteur WhatsApp.
+3. Generer ou copier un token d'acces WhatsApp valide.
+4. Dans Railway, ouvrir le service web `gesprec-platform`, puis l'onglet `Variables`.
+5. Ajouter `WHATSAPP_TOKEN` avec le token Meta.
+6. Ajouter `WHATSAPP_PHONE_NUMBER_ID` avec le Phone number ID Meta.
+7. Cliquer sur `Deploy` ou attendre le redeploiement automatique.
+8. Dans Gesprec, se connecter en Responsable QSSE, ouvrir `Utilisateurs`, saisir un numero de test au format `+212...`, puis cliquer sur `Envoyer test WhatsApp`.
+
+Les numeros des responsables doivent etre saisis dans `Utilisateurs` au format international:
+
+```text
++212600000000
+```
+
 Pour l'envoi d'emails de secours, il faut un vrai compte SMTP. Par exemple le SMTP de votre entreprise, Gmail avec mot de passe d'application, Brevo, Mailgun ou SendGrid.
 
 Variables a renseigner:
