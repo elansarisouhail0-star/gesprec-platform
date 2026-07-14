@@ -209,20 +209,30 @@
   ::placeholder{ color:#6b7480; }
 
   /* ---------- AUTH / LOGIN GATE ---------- */
-  .login-wrap{ min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:30px; }
-  .login-card{ width:100%; max-width:560px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:32px 30px; }
-  .login-sub{ text-align:center; color:var(--text-dim); font-size:13.5px; margin-bottom:22px; }
+  .login-wrap{
+    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:30px;
+    background:
+      linear-gradient(90deg, rgba(7,13,19,.28), rgba(7,13,19,.38)),
+      url("/assets/profile-background.png") center center / cover no-repeat;
+  }
+  .login-card{
+    width:100%; max-width:620px; background:rgba(20,24,29,.74); border:1px solid rgba(255,255,255,.22);
+    border-radius:14px; padding:30px; box-shadow:0 24px 70px rgba(0,0,0,.42);
+    backdrop-filter:blur(7px);
+  }
+  .login-card.profile-choice-card{ margin:auto; }
+  .login-sub{ text-align:center; color:#fff; font-size:16px; margin-bottom:22px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.45); }
   .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
   .role-card{
-    border:1px solid var(--line); background:var(--panel-2); border-radius:10px; padding:14px 12px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.24); background:rgba(20,32,43,.82); border-radius:10px; padding:14px 12px; cursor:pointer;
     text-align:center; transition:border-color .15s, background .15s;
   }
-  .role-card:hover{ border-color:var(--orange); }
-  .role-card.sel{ border-color:var(--orange); background:rgba(255,106,43,0.12); }
+  .role-card:hover{ border-color:var(--orange); background:rgba(255,106,43,.22); }
+  .role-card.sel{ border-color:var(--orange); background:rgba(255,106,43,0.3); }
   .role-card .ric{ font-size:20px; margin-bottom:6px; }
-  .role-card .rname{ font-weight:600; font-size:13.5px; }
-  .role-card .rdesc{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:3px; }
-  .login-fields{ border-top:1px solid var(--line); padding-top:16px; margin-top:4px; }
+  .role-card .rname{ font-weight:700; font-size:13.5px; color:#fff; }
+  .role-card .rdesc{ font-size:10.5px; color:#d8e0e8; text-transform:uppercase; letter-spacing:0.5px; margin-top:3px; }
+  .login-fields{ border-top:1px solid rgba(255,255,255,.22); padding-top:16px; margin-top:4px; }
   .login-error{ color:var(--red); font-size:12.5px; margin:-4px 0 10px; }
   .login-hint{ text-align:center; color:var(--text-dim); font-size:12.5px; padding-top:6px; }
 
@@ -247,6 +257,7 @@
       grid-template-columns:1fr !important;
     }
     .panel, .login-card{ padding:14px; }
+    .login-wrap{ padding:14px; background-position:center top; }
     .modal{ max-width:100%; padding:18px 16px; border-radius:10px; }
     .overlay{ padding:10px; }
     .kv{ grid-template-columns:1fr; gap:2px; }
@@ -1734,11 +1745,7 @@ loginGateHTML = function(){
   ];
   return `
   <div class="login-wrap">
-    <div class="login-card">
-      <div class="brand" style="justify-content:center;">
-        ${brandMarkHTML()}
-        <div><div class="name">Gestion Précurseurs</div><div class="sub">ONCF - PM - EMIC - TMLC</div></div>
-      </div>
+    <div class="login-card profile-choice-card">
       <div class="login-sub">Sélectionnez votre profil pour continuer</div>
       <div class="role-grid">
         ${roles.map(r=>`
