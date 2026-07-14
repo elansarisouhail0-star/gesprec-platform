@@ -210,17 +210,17 @@
 
   /* ---------- AUTH / LOGIN GATE ---------- */
   .login-wrap{
-    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:30px;
+    min-height:100vh; width:100%; display:flex; align-items:flex-start; justify-content:center; padding:6vh 30px 30px;
     background:
       linear-gradient(90deg, rgba(7,13,19,.28), rgba(7,13,19,.38)),
-      url("/assets/profile-background.png") center center / cover no-repeat;
+      url("/assets/profile-background.jpg") center bottom / cover no-repeat;
   }
   .login-card{
     width:100%; max-width:620px; background:rgba(20,24,29,.74); border:1px solid rgba(255,255,255,.22);
     border-radius:14px; padding:30px; box-shadow:0 24px 70px rgba(0,0,0,.42);
     backdrop-filter:blur(7px);
   }
-  .login-card.profile-choice-card{ margin:auto; }
+  .login-card.profile-choice-card{ margin:0 auto auto; }
   .login-sub{ text-align:center; color:#fff; font-size:16px; margin-bottom:22px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.45); }
   .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
   .role-card{
@@ -235,6 +235,23 @@
   .login-fields{ border-top:1px solid rgba(255,255,255,.22); padding-top:16px; margin-top:4px; }
   .login-error{ color:var(--red); font-size:12.5px; margin:-4px 0 10px; }
   .login-hint{ text-align:center; color:var(--text-dim); font-size:12.5px; padding-top:6px; }
+  .check-list{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .check-option{
+    display:flex; align-items:flex-start; gap:9px; min-height:42px; border:1px solid var(--line); background:var(--panel-2);
+    border-radius:8px; padding:9px 10px; cursor:pointer; user-select:none; transition:border-color .15s, background .15s;
+  }
+  .check-option:hover{ border-color:var(--orange); }
+  .check-option.selected{ border-color:var(--orange); background:rgba(255,106,43,.16); }
+  .check-option .check-icon{
+    width:18px; height:18px; flex-shrink:0; border-radius:5px; border:1px solid var(--text-dim); color:transparent;
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; margin-top:1px;
+  }
+  .check-option.selected .check-icon{ background:var(--orange); border-color:var(--orange); color:#14181D; }
+  .check-option .check-main{ font-size:13px; font-weight:700; color:var(--text); line-height:1.25; }
+  .check-option .check-sub{ font-size:11px; color:var(--text-dim); margin-top:2px; line-height:1.25; word-break:break-word; }
+  .selected-phone-list{ display:flex; flex-direction:column; gap:6px; }
+  .selected-phone-pill{ border:1px solid var(--line); border-radius:8px; background:var(--panel-2); padding:8px 10px; font-size:12px; color:var(--text); }
+  .selected-phone-pill b{ color:var(--orange); }
 
   @media (max-width: 820px){
     body.has-sidebar{ background:var(--bg); }
@@ -253,11 +270,11 @@
     .topbar h1{ font-size:24px; }
     .atelier-pill{ width:100%; flex-wrap:wrap; border-radius:10px; }
     .atelier-pill select{ max-width:100%; }
-    .kpi-grid, .charts-row, .kanban, .row2, .row3, .role-grid{
+    .kpi-grid, .charts-row, .kanban, .row2, .row3, .role-grid, .check-list{
       grid-template-columns:1fr !important;
     }
     .panel, .login-card{ padding:14px; }
-    .login-wrap{ padding:14px; background-position:center top; }
+    .login-wrap{ padding:5vh 14px 14px; background-position:center bottom; }
     .modal{ max-width:100%; padding:18px 16px; border-radius:10px; }
     .overlay{ padding:10px; }
     .kv{ grid-template-columns:1fr; gap:2px; }
@@ -352,18 +369,39 @@ function treatmentUsersForAtelier(atelier){
 }
 
 function selectedTreatmentUsers(){
-  const select = document.getElementById("af_responsibles");
-  if(!select) return [];
-  const ids = Array.from(select.selectedOptions).map(option=>Number(option.value));
+  const ids = Array.from(document.querySelectorAll("[data-responsible].selected")).map(option=>Number(option.dataset.responsible));
   return (state.users || []).filter(u=>ids.includes(Number(u.id)));
 }
 
+function selectedAteliersFromChecklist(){
+  return Array.from(document.querySelectorAll("[data-user-atelier].selected")).map(option=>option.dataset.userAtelier);
+}
+
 function phonesForUsers(users){
+  const rows = [];
+  users.forEach(u=>{
+    const phones = splitMulti(u.phone_numbers);
+    if(phones.length){
+      phones.forEach(phone=>rows.push({name:u.full_name, phone}));
+    }else{
+      rows.push({name:u.full_name, phone:"Telephone non renseigne"});
+    }
+  });
+  return rows;
+}
+
+function phoneStringForUsers(users){
   const phones = [];
   users.forEach(u=>splitMulti(u.phone_numbers).forEach(phone=>{
     if(!phones.includes(phone)) phones.push(phone);
   }));
   return phones.join(", ");
+}
+
+function selectedPhoneListHTML(users){
+  const rows = phonesForUsers(users);
+  if(!rows.length) return `<div style="font-size:12px;color:var(--text-dim);">Selectionnez un ou plusieurs responsables.</div>`;
+  return `<div class="selected-phone-list">${rows.map(row=>`<div class="selected-phone-pill"><b>${row.name}</b> - ${row.phone}</div>`).join("")}</div>`;
 }
 
 function atelierPillHTML(){
@@ -391,6 +429,7 @@ let state = {
   openHistoryIndex: null,
   previewImage: null,
   currentUser: null,
+  fromQrScan: false,
   form: emptyForm()
 };
 
@@ -653,10 +692,30 @@ function excelEscape(value){
     .replace(/"/g, "&quot;");
 }
 
-function excelImageLinks(photos){
+async function imageToDataUrl(src){
+  if(!src) return "";
+  if(String(src).startsWith("data:")) return src;
+  try{
+    const res = await fetch(src);
+    const blob = await res.blob();
+    return await new Promise(resolve=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result || "");
+      reader.onerror = ()=>resolve("");
+      reader.readAsDataURL(blob);
+    });
+  }catch(e){ return ""; }
+}
+
+async function excelImagesHTML(photos){
   const items = (photos || []).filter(Boolean);
   if(!items.length) return "";
-  return items.map((src, idx)=>`<a href="${excelEscape(src)}">Image ${idx + 1}</a>`).join("<br>");
+  const images = [];
+  for(let i=0; i<items.length; i++){
+    const dataUrl = await imageToDataUrl(items[i]);
+    if(dataUrl) images.push(`<div>Image ${i + 1}<br><img src="${dataUrl}" width="150"></div>`);
+  }
+  return images.join("<br>");
 }
 
 function dashboardSnapshotRows(declarations){
@@ -678,11 +737,12 @@ function dashboardSnapshotRows(declarations){
   return rows;
 }
 
-function dashboardSnapshotImage(declarations){
+function dashboardSnapshotImage(declarations, snapshotRows){
   const total = declarations.length;
   const open = declarations.filter(d=>d.status !== "cloture").length;
   const closed = declarations.filter(d=>d.status === "cloture").length;
   const critical = declarations.filter(d=>d.graviteReelle === "critique").length;
+  const taux = total ? Math.round((closed / total) * 100) : 0;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="280" viewBox="0 0 900 280">
     <rect width="900" height="280" fill="#14181D"/>
     <text x="30" y="44" fill="#FF6A2B" font-family="Arial" font-size="26" font-weight="700">Gestion Précurseurs - Capture tableau de bord</text>
@@ -691,10 +751,11 @@ function dashboardSnapshotImage(declarations){
       ["Total", total, "#FF6A2B"],
       ["Ouvertes", open, "#F2B705"],
       ["Clôturées", closed, "#2E9B6B"],
-      ["Critiques", critical, "#E4432B"]
+      ["Critiques", critical, "#E4432B"],
+      ["Taux cloture", taux + "%", "#4C8DFF"]
     ].map((kpi, idx)=>{
-      const x = 30 + idx * 210;
-      return `<rect x="${x}" y="105" width="185" height="110" rx="8" fill="#20262E" stroke="#2C333D"/>
+      const x = 30 + idx * 170;
+      return `<rect x="${x}" y="105" width="150" height="110" rx="8" fill="#20262E" stroke="#2C333D"/>
         <text x="${x+18}" y="146" fill="${kpi[2]}" font-family="Arial" font-size="34" font-weight="700">${kpi[1]}</text>
         <text x="${x+18}" y="180" fill="#9AA3AD" font-family="Arial" font-size="16">${kpi[0]}</text>`;
     }).join("")}
@@ -702,12 +763,16 @@ function dashboardSnapshotImage(declarations){
   return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
 }
 
-function exportDeclarationsExcel(){
-  const rows = state.declarations.filter(d=>!state.atelierScanne || d.atelier === state.atelierScanne);
+async function exportDeclarationsExcel(){
+  const rows = [...state.declarations];
   if(rows.length === 0){ toast("Aucune déclaration à exporter pour ces critères."); return; }
   const snapshot = dashboardSnapshotRows(rows).map(r=>`<tr><td>${excelEscape(r[0])}</td><td>${excelEscape(r[1])}</td></tr>`).join("");
-  const snapshotImage = dashboardSnapshotImage(rows);
-  const bodyRows = rows.map(d=>`
+  const snapshotImage = dashboardSnapshotImage(rows, snapshot);
+  const bodyRowParts = [];
+  for(const d of rows){
+    const declarationImages = await excelImagesHTML(d.declarationPhotos || d.photos);
+    const interventionImages = await excelImagesHTML(d.interventionPhotos);
+    bodyRowParts.push(`
     <tr>
       <td>${excelEscape(d.id)}</td>
       <td>${excelEscape(d.description)}</td>
@@ -718,9 +783,11 @@ function exportDeclarationsExcel(){
       <td>${excelEscape(d.dateCreation)}</td>
       <td>${excelEscape((d.affectation && d.affectation.slaDate) || "")}</td>
       <td>${excelEscape((d.cloture && d.cloture.dateCloture) || "")}</td>
-      <td>${excelImageLinks(d.declarationPhotos || d.photos)}</td>
-      <td>${excelImageLinks(d.interventionPhotos)}</td>
-    </tr>`).join("");
+      <td>${declarationImages}</td>
+      <td>${interventionImages}</td>
+    </tr>`);
+  }
+  const bodyRows = bodyRowParts.join("");
   const html = `<!doctype html>
   <html><head><meta charset="utf-8">
   <style>
@@ -796,7 +863,7 @@ function renderApp(){
   if(state.role === "declarant"){
     app.innerHTML = `
       <div class="main solo">
-        ${soloTopHTML()}
+        ${state.fromQrScan ? "" : soloTopHTML()}
         ${topbarHTML()}
         ${formHTML()}
       </div>
@@ -896,6 +963,7 @@ function bindLoginEvents(){
   });
   const btnEnterDeclarant = document.getElementById("btnEnterDeclarant");
   if(btnEnterDeclarant) btnEnterDeclarant.onclick = ()=>{
+    state.fromQrScan = false;
     state.role = "declarant";
     state.auth.loggedIn = true;
     state.tab = "nouvelle";
@@ -1241,13 +1309,16 @@ function actionBlockHTML(dec){
     </div>
     <div class="row2">
       <div class="field"><label>Date limite (SLA)</label><input type="date" id="af_sla"></div>
-      <div class="field"><label>Numéros WhatsApp</label><input type="text" id="af_phones" readonly placeholder="Sélectionnez les responsables"></div>
+      <div class="field"><label>Numeros WhatsApp selectionnes</label><div id="af_phones" class="selected-phone-list"><div style="font-size:12px;color:var(--text-dim);">Selectionnez un ou plusieurs responsables.</div></div><input type="hidden" id="af_phone_values"></div>
     </div>
     <div class="field">
       <label>Responsables de traitement</label>
-      <select id="af_responsibles" multiple size="5">
-        ${treatmentUsers.map(u=>`<option value="${u.id}">${u.full_name} - ${u.phone_numbers || "Téléphone non renseigné"}</option>`).join("")}
-      </select>
+      <div id="af_responsibles" class="check-list">
+        ${treatmentUsers.map(u=>`<div class="check-option" data-responsible="${u.id}">
+          <span class="check-icon">&#10003;</span>
+          <span><span class="check-main">${u.full_name}</span><span class="check-sub">${u.phone_numbers || "Telephone non renseigne"}</span></span>
+        </div>`).join("")}
+      </div>
       ${treatmentUsers.length ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Aucun responsable de traitement n'est rattaché à l'atelier ${dec.atelier}.</div>`}
     </div>
     <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 collaborateurs, pièce détachée X"></div>
@@ -1322,6 +1393,7 @@ function bindEvents(){
     state.openHistoryIndex = null;
     state.previewImage = null;
     state.currentUser = null;
+    state.fromQrScan = false;
     render();
   };
   const atelierSel = document.getElementById("atelierSelect");
@@ -1426,11 +1498,16 @@ function bindEvents(){
     });
   };
   const btnAffecter = document.getElementById("btnAffecter");
-  const afResponsibles = document.getElementById("af_responsibles");
-  if(afResponsibles) afResponsibles.onchange = ()=>{
-    const phonesInput = document.getElementById("af_phones");
-    if(phonesInput) phonesInput.value = phonesForUsers(selectedTreatmentUsers());
-  };
+  document.querySelectorAll("[data-responsible]").forEach(option=>{
+    option.onclick = ()=>{
+      option.classList.toggle("selected");
+      const selectedUsers = selectedTreatmentUsers();
+      const phonesBox = document.getElementById("af_phones");
+      const phoneValues = document.getElementById("af_phone_values");
+      if(phonesBox) phonesBox.innerHTML = selectedPhoneListHTML(selectedUsers);
+      if(phoneValues) phoneValues.value = phoneStringForUsers(selectedUsers);
+    };
+  });
   if(btnAffecter) btnAffecter.onclick = ()=>{
     const selectedUsers = selectedTreatmentUsers();
     if(selectedUsers.length === 0){
@@ -1444,7 +1521,7 @@ function bindEvents(){
       priorite: document.getElementById("af_prio").value,
       slaDate: document.getElementById("af_sla").value || "—",
       ressources: document.getElementById("af_ress").value,
-      phoneNumbers: (document.getElementById("af_phones") && document.getElementById("af_phones").value.trim()) || ""
+      phoneNumbers: (document.getElementById("af_phone_values") && document.getElementById("af_phone_values").value.trim()) || ""
     });
   };
   const btnPlanifier = document.getElementById("btnPlanifier");
@@ -1522,6 +1599,7 @@ if(urlAtelier && ATELIERS.includes(urlAtelier)){
   localStorage.removeItem("gesprec_token");
   localStorage.removeItem("gesprec_user");
   state.qrAtelierLocked = false;
+  state.fromQrScan = true;
   state.role = "declarant";
   state.auth.loggedIn = true;
   state.tab = "nouvelle";
@@ -1891,7 +1969,7 @@ function usersHTML(){
     </div>
     <div class="field">
       <label>Ateliers de responsabilité</label>
-      <select id="u_ateliers" multiple size="6">${ATELIERS.map(a=>`<option value="${a}">${a}</option>`).join("")}</select>
+      <div id="u_ateliers" class="check-list">${ATELIERS.map(a=>`<div class="check-option" data-user-atelier="${a}"><span class="check-icon">&#10003;</span><span class="check-main">${a}</span></div>`).join("")}</div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:18px;">
       <button class="btn small" id="btnSaveUser">Enregistrer</button>
@@ -1955,8 +2033,12 @@ bindEvents = function(){
     state.openHistoryIndex = null;
     state.previewImage = null;
     state.currentUser = null;
+    state.fromQrScan = false;
     render();
   };
+  document.querySelectorAll("[data-user-atelier]").forEach(option=>{
+    option.onclick = ()=> option.classList.toggle("selected");
+  });
   document.querySelectorAll("[data-edit-user]").forEach(btn=>{
     btn.onclick = ()=>{
       const u = (state.users || []).find(x=>String(x.id)===String(btn.dataset.editUser));
@@ -1967,12 +2049,9 @@ bindEvents = function(){
       document.getElementById("u_role").value = u.role;
       document.getElementById("u_phone_numbers").value = u.phone_numbers || "";
       const ateliers = splitMulti(u.responsible_ateliers);
-      const atelierSelect = document.getElementById("u_ateliers");
-      if(atelierSelect){
-        Array.from(atelierSelect.options).forEach(option=>{
-          option.selected = ateliers.includes(option.value);
-        });
-      }
+      document.querySelectorAll("[data-user-atelier]").forEach(option=>{
+        option.classList.toggle("selected", ateliers.includes(option.dataset.userAtelier));
+      });
       document.getElementById("u_password").value = "";
     };
   });
@@ -1992,8 +2071,7 @@ bindEvents = function(){
   const clearUser = document.getElementById("btnClearUser");
   if(clearUser) clearUser.onclick = ()=>{
     ["u_id","u_email","u_name","u_password","u_phone_numbers"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
-    const atelierSelect = document.getElementById("u_ateliers");
-    if(atelierSelect) Array.from(atelierSelect.options).forEach(option=>{ option.selected = false; });
+    document.querySelectorAll("[data-user-atelier]").forEach(option=>option.classList.remove("selected"));
   };
   const saveUser = document.getElementById("btnSaveUser");
   if(saveUser) saveUser.onclick = async ()=>{
@@ -2004,7 +2082,7 @@ bindEvents = function(){
       role: document.getElementById("u_role").value,
       is_active: true,
       phone_numbers: document.getElementById("u_phone_numbers").value.trim(),
-      responsible_ateliers: Array.from(document.getElementById("u_ateliers").selectedOptions).map(o=>o.value).join(", ")
+      responsible_ateliers: selectedAteliersFromChecklist().join(", ")
     };
     const password = document.getElementById("u_password").value;
     if(password) payload.password = password;
