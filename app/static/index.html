@@ -210,21 +210,21 @@
 
   /* ---------- AUTH / LOGIN GATE ---------- */
   .login-wrap{
-    min-height:100vh; width:100%; display:flex; align-items:flex-start; justify-content:center; padding:6vh 30px 30px;
+    min-height:100vh; width:100%; display:flex; align-items:flex-start; justify-content:center; padding:2vh 30px 30px;
     background:
       linear-gradient(90deg, rgba(7,13,19,.28), rgba(7,13,19,.38)),
-      url("/assets/profile-background.jpg") center bottom / cover no-repeat;
+      url("/assets/profile-background.jpg") center center / contain no-repeat;
   }
   .login-card{
-    width:100%; max-width:620px; background:rgba(20,24,29,.74); border:1px solid rgba(255,255,255,.22);
-    border-radius:14px; padding:30px; box-shadow:0 24px 70px rgba(0,0,0,.42);
+    width:100%; max-width:560px; background:rgba(20,24,29,.66); border:1px solid rgba(255,255,255,.22);
+    border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.38);
     backdrop-filter:blur(7px);
   }
   .login-card.profile-choice-card{ margin:0 auto auto; }
-  .login-sub{ text-align:center; color:#fff; font-size:16px; margin-bottom:22px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.45); }
-  .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
+  .login-sub{ text-align:center; color:#fff; font-size:15px; margin-bottom:16px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.45); }
+  .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px; }
   .role-card{
-    border:1px solid rgba(255,255,255,.24); background:rgba(20,32,43,.82); border-radius:10px; padding:14px 12px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.24); background:rgba(20,32,43,.82); border-radius:10px; padding:10px 10px; cursor:pointer;
     text-align:center; transition:border-color .15s, background .15s;
   }
   .role-card:hover{ border-color:var(--orange); background:rgba(255,106,43,.22); }
@@ -274,7 +274,7 @@
       grid-template-columns:1fr !important;
     }
     .panel, .login-card{ padding:14px; }
-    .login-wrap{ padding:5vh 14px 14px; background-position:center bottom; }
+    .login-wrap{ padding:2vh 14px 14px; background-position:center center; background-size:contain; }
     .modal{ max-width:100%; padding:18px 16px; border-radius:10px; }
     .overlay{ padding:10px; }
     .kv{ grid-template-columns:1fr; gap:2px; }
