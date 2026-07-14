@@ -20,6 +20,8 @@ class UserOut(BaseModel):
     full_name: str
     role: Role
     is_active: bool
+    responsible_ateliers: str | None = None
+    phone_numbers: str | None = None
 
 
 class UserCreate(BaseModel):
@@ -27,6 +29,8 @@ class UserCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=255)
     role: Role
     password: str = Field(min_length=8, max_length=128)
+    responsible_ateliers: str | None = Field(default=None, max_length=2000)
+    phone_numbers: str | None = Field(default=None, max_length=500)
 
 
 class UserUpdate(BaseModel):
@@ -35,6 +39,8 @@ class UserUpdate(BaseModel):
     role: Role | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
     is_active: bool | None = None
+    responsible_ateliers: str | None = Field(default=None, max_length=2000)
+    phone_numbers: str | None = Field(default=None, max_length=500)
 
 
 class PasswordChange(BaseModel):
@@ -90,10 +96,12 @@ class AnalysisIn(BaseModel):
 class AssignmentIn(BaseModel):
     service: str = Field(min_length=2, max_length=180)
     responsible: str = Field(min_length=2, max_length=180)
+    responsible_ids: list[int] = Field(default_factory=list)
     priority: str = "Normale"
     sla_date: str | None = None
     resources: str | None = None
     email: str | None = Field(default=None, max_length=1000)
+    phone_numbers: str | None = Field(default=None, max_length=500)
 
 
 class PlanningIn(BaseModel):
@@ -145,6 +153,7 @@ class DeclarationOut(BaseModel):
     sla_date: str | None = None
     resources: str | None = None
     assigned_email: str | None = None
+    assigned_phone_numbers: str | None = None
     assigned_at: datetime | None = None
 
     planned_date: str | None = None

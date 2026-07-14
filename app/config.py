@@ -31,6 +31,8 @@ class Settings:
     smtp_password: str = os.getenv("SMTP_PASSWORD", "")
     smtp_from: str = os.getenv("SMTP_FROM", "gesprec@tmlc.local")
     smtp_tls: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
+    whatsapp_token: str = os.getenv("WHATSAPP_TOKEN", "")
+    whatsapp_phone_number_id: str = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
 
 
 @lru_cache

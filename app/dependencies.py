@@ -64,5 +64,5 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
 
 def require_hse_group(user: User = Depends(get_current_user)) -> User:
     if parse_role(user.role) not in HSE_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle HSE, Chef ou Coordination requis")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle QSSE, Chef ou Coordination requis")
     return user

@@ -1,4 +1,6 @@
 from pathlib import Path
+import asyncio
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,7 @@ from app.seed import seed_default_users
 
 
 settings = get_settings()
+logger = logging.getLogger("gesprec")
 app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
@@ -36,11 +39,21 @@ def apply_lightweight_migrations() -> None:
     declaration_additions = {
         "intervention_days": "INTEGER",
         "intervention_date": "VARCHAR(80)",
+        "assigned_phone_numbers": "VARCHAR(500)",
     }
     with engine.begin() as conn:
         for name, sql_type in declaration_additions.items():
             if name not in declaration_columns:
                 conn.execute(text(f"ALTER TABLE declarations ADD COLUMN {name} {sql_type}"))
+        if "users" in inspector.get_table_names():
+            user_columns = {column["name"] for column in inspector.get_columns("users")}
+            user_additions = {
+                "responsible_ateliers": "TEXT",
+                "phone_numbers": "VARCHAR(500)",
+            }
+            for name, sql_type in user_additions.items():
+                if name not in user_columns:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {sql_type}"))
         if "photos" in inspector.get_table_names():
             photo_columns = {column["name"] for column in inspector.get_columns("photos")}
             if "phase" not in photo_columns:
@@ -59,6 +72,26 @@ def on_startup() -> None:
             seed_default_users(db)
         finally:
             db.close()
+
+
+async def whatsapp_reminder_worker() -> None:
+    while True:
+        await asyncio.sleep(30)
+        db = SessionLocal()
+        try:
+            processed = system.process_whatsapp_reminders(db)
+            if processed:
+                logger.info("Processed %s WhatsApp reminder(s)", processed)
+        except Exception as exc:
+            logger.warning("WhatsApp reminder worker failed: %s", exc)
+        finally:
+            db.close()
+        await asyncio.sleep(6 * 60 * 60)
+
+
+@app.on_event("startup")
+async def start_background_workers() -> None:
+    asyncio.create_task(whatsapp_reminder_worker())
 
 
 @app.get("/health", tags=["system"])

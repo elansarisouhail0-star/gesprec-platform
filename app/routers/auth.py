@@ -40,6 +40,8 @@ def create_user(
         full_name=payload.full_name,
         role=Role(payload.role),
         hashed_password=hash_password(payload.password),
+        responsible_ateliers=payload.responsible_ateliers,
+        phone_numbers=payload.phone_numbers,
     )
     db.add(user)
     db.commit()
@@ -50,7 +52,7 @@ def create_user(
 @router.get("/users", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(Role.hse)),
+    _: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination)),
 ) -> list[User]:
     return list(db.scalars(select(User).order_by(User.role, User.full_name)))
 
@@ -78,6 +80,10 @@ def update_user(
         user.hashed_password = hash_password(payload.password)
     if payload.is_active is not None:
         user.is_active = payload.is_active
+    if payload.responsible_ateliers is not None:
+        user.responsible_ateliers = payload.responsible_ateliers
+    if payload.phone_numbers is not None:
+        user.phone_numbers = payload.phone_numbers
     db.commit()
     db.refresh(user)
     return user

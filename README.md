@@ -53,7 +53,7 @@ docker compose up --build
 
 | Role | Email | Mot de passe |
 | --- | --- | --- |
-| Responsable HSE | hse@gesprec.local | Hse12345! |
+| Responsable QSSE | hse@gesprec.local | Hse12345! |
 | Chef de technicentre TMLC | chef@gesprec.local | Chef12345! |
 | Chef d'etablissement | etablissement@gesprec.local | Etab12345! |
 | Coordination | coordination@gesprec.local | Coord12345! |
@@ -69,26 +69,27 @@ Change ces comptes avant tout deploiement reel. Aucun compte declarant n'est cre
 | Methode | Route | Role |
 | --- | --- | --- |
 | POST | `/auth/login` | public |
-| GET | `/auth/users` | HSE |
-| POST | `/auth/users` | HSE |
-| PATCH | `/auth/users/{id}` | HSE |
+| GET | `/auth/users` | QSSE, chef technicentre TMLC, coordination |
+| POST | `/auth/users` | QSSE |
+| PATCH | `/auth/users/{id}` | QSSE |
 | POST | `/auth/change-password` | connecte |
 | POST | `/declarations` | public, sans authentification declarant |
-| GET | `/declarations` | HSE, chef technicentre TMLC, coordination, traitement |
-| GET | `/declarations/{id}` | HSE, chef technicentre TMLC, coordination, traitement |
+| GET | `/declarations` | QSSE, chef technicentre TMLC, coordination, traitement |
+| GET | `/declarations/{id}` | QSSE, chef technicentre TMLC, coordination, traitement |
 | POST | `/declarations/{id}/photos` | public apres creation d'une declaration |
-| POST | `/declarations/{id}/analyse` | HSE, chef technicentre TMLC, coordination |
-| POST | `/declarations/{id}/affectation` | HSE, chef technicentre TMLC, coordination |
+| POST | `/declarations/{id}/analyse` | QSSE, chef technicentre TMLC, coordination |
+| POST | `/declarations/{id}/affectation` | QSSE, chef technicentre TMLC, coordination |
 | POST | `/declarations/{id}/planification` | traitement |
 | POST | `/declarations/{id}/intervention` | traitement |
-| POST | `/declarations/{id}/verification` | HSE, chef technicentre TMLC, coordination |
+| POST | `/declarations/{id}/verification` | QSSE, chef technicentre TMLC, coordination |
 | GET | `/notifications` | connecte |
 | POST | `/notifications/{id}/read` | connecte |
-| GET | `/dashboard/stats` | HSE, chef technicentre TMLC, coordination, traitement, chef d'etablissement |
+| GET | `/dashboard/stats` | QSSE, chef technicentre TMLC, coordination, traitement, chef d'etablissement |
 | GET | `/qr/ateliers` | public |
-| GET | `/qr/atelier.svg?name=Atelier%20HITACHI` | public |
-| GET | `/system/email-status` | HSE |
-| POST | `/system/email-test` | HSE |
+| GET | `/qr/declaration.svg` | public |
+| GET | `/system/email-status` | QSSE |
+| POST | `/system/email-test` | QSSE |
+| POST | `/system/whatsapp-reminders` | QSSE |
 
 Le Chef d'etablissement est volontairement limite au dashboard. Il ne peut pas lister, ouvrir, modifier ou traiter les declarations.
 
@@ -108,7 +109,7 @@ curl -X POST http://localhost:8000/auth/login \
 curl -X POST http://localhost:8000/declarations \
   -H "Content-Type: application/json" \
   -d '{
-    "atelier": "Atelier HITACHI",
+    "atelier": "HITACHI Remise",
     "category": "Securite",
     "description": "Protection absente sur une zone mobile",
     "gravity": "important",
@@ -178,11 +179,20 @@ Page imprimable:
 http://localhost:8000/qr/ateliers
 ```
 
-Chaque QR ouvre le formulaire declarant avec l'atelier deja selectionne.
+Le QR unique ouvre directement le formulaire declarant; le declarant choisit ensuite l'atelier cible.
 
-## Emails SMTP
+## WhatsApp et emails SMTP
 
-L'envoi email est fonctionnel uniquement si ces variables sont configurees:
+Le canal principal de notification est WhatsApp. Pour l'envoi automatique via WhatsApp Cloud API, configurer:
+
+```text
+WHATSAPP_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+```
+
+Sans ces variables, l'application trace dans l'historique des liens `wa.me` a ouvrir manuellement.
+
+L'envoi email reste disponible en secours uniquement si ces variables sont configurees:
 
 ```text
 SMTP_HOST=
@@ -193,7 +203,7 @@ SMTP_FROM=
 SMTP_TLS=true
 ```
 
-Sans SMTP, l'application conserve l'affectation mais indique dans l'historique que l'email n'a pas ete envoye.
+Sans SMTP, l'application conserve l'affectation et utilise le flux WhatsApp.
 
 ## Deploiement GitHub + Railway
 

@@ -1,10 +1,17 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.dependencies import require_roles
 from app.config import get_settings
 from app.emailer import send_email, smtp_enabled
-from app.models import Role, User
+from app.constants import split_multi
+from app.models import Declaration, HistoryEvent, Role, Status, User
+from app.routers.declarations import deadline_whatsapp_message, send_or_trace_whatsapp
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -37,3 +44,45 @@ def email_test(payload: EmailTestIn, _: User = Depends(require_roles(Role.hse)))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Echec SMTP: {exc}")
     return {"sent": sent}
+
+
+@router.post("/whatsapp-reminders")
+def whatsapp_reminders(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(Role.hse)),
+) -> dict[str, int]:
+    return {"processed": process_whatsapp_reminders(db, user)}
+
+
+def process_whatsapp_reminders(db: Session, user: User | None = None) -> int:
+    target = (date.today() + timedelta(days=1)).isoformat()
+    declarations = list(
+        db.scalars(
+            select(Declaration).where(
+                Declaration.sla_date == target,
+                Declaration.status != Status.cloture,
+            )
+        )
+    )
+    processed = 0
+    for declaration in declarations:
+        already_sent = db.scalar(
+            select(HistoryEvent).where(
+                HistoryEvent.declaration_id == declaration.id,
+                HistoryEvent.action.like("%Rappel WhatsApp J-1%"),
+            )
+        )
+        if already_sent:
+            continue
+        phones = split_multi(declaration.assigned_phone_numbers)
+        send_or_trace_whatsapp(
+            db,
+            declaration,
+            phones,
+            deadline_whatsapp_message(declaration),
+            "Rappel WhatsApp J-1",
+            user,
+        )
+        processed += 1
+    db.commit()
+    return processed

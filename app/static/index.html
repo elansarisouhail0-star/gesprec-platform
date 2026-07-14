@@ -35,14 +35,15 @@
     -webkit-font-smoothing:antialiased;
   }
   body.has-sidebar{
-    background:linear-gradient(to right, #fff 0, #fff 240px, var(--bg) 240px, var(--bg) 100%);
+    background:#fff;
   }
-  #app{ display:flex; min-height:100vh; }
+  #app{ display:flex; min-height:100vh; background:var(--bg); }
 
   /* ---------- SIDEBAR ---------- */
   .sidebar{
     width:240px; flex-shrink:0; background:#fff; border-right:1px solid #f0c4aa;
-    display:flex; flex-direction:column; padding:14px 12px; min-height:100vh;
+    display:flex; flex-direction:column; padding:14px 12px; min-height:100vh; height:100vh;
+    position:sticky; top:0; overflow:auto;
   }
   .brand{ display:flex; flex-direction:column; align-items:center; gap:2px; margin-bottom:30px; padding:0 2px; width:100%; user-select:none; cursor:default; }
   .brand.home-link{ cursor:pointer; }
@@ -64,7 +65,7 @@
   .role-box{ font-size:10.5px; color:#8f2f0b; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;}
 
   /* ---------- MAIN ---------- */
-  .main{ flex:1; padding:20px 26px; max-width:1400px; }
+  .main{ flex:1; padding:20px 26px; max-width:none; min-height:100vh; background:var(--bg); }
   .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
   .topbar h1{ font-family:var(--display); font-weight:700; font-size:28px; margin:0; letter-spacing:0.2px;}
   .atelier-pill{
@@ -225,6 +226,37 @@
   .login-error{ color:var(--red); font-size:12.5px; margin:-4px 0 10px; }
   .login-hint{ text-align:center; color:var(--text-dim); font-size:12.5px; padding-top:6px; }
 
+  @media (max-width: 820px){
+    body.has-sidebar{ background:var(--bg); }
+    #app{ flex-direction:column; min-height:100vh; }
+    .sidebar{
+      width:100%; min-height:auto; border-right:none; border-bottom:1px solid #f0c4aa;
+      padding:10px; gap:6px; height:auto; position:relative; overflow:visible;
+    }
+    .brand{ margin-bottom:10px; }
+    .brand .name{ font-size:24px; line-height:1; }
+    .brand .sub{ font-size:8.5px; letter-spacing:1px; white-space:normal; }
+    .navitem{ margin-bottom:4px; }
+    .sidebar-footer{ margin-top:8px; }
+    .main{ width:100%; max-width:none; padding:14px; }
+    .topbar{ flex-direction:column; align-items:flex-start; gap:10px; margin-bottom:14px; }
+    .topbar h1{ font-size:24px; }
+    .atelier-pill{ width:100%; flex-wrap:wrap; border-radius:10px; }
+    .atelier-pill select{ max-width:100%; }
+    .kpi-grid, .charts-row, .kanban, .row2, .row3, .role-grid{
+      grid-template-columns:1fr !important;
+    }
+    .panel, .login-card{ padding:14px; }
+    .modal{ max-width:100%; padding:18px 16px; border-radius:10px; }
+    .overlay{ padding:10px; }
+    .kv{ grid-template-columns:1fr; gap:2px; }
+    .notif-row{ flex-direction:column; align-items:flex-start; }
+    .btn{ width:100%; }
+    .btn.small{ width:auto; }
+    .section-header{ flex-direction:column; align-items:flex-start; gap:10px; }
+    .photo-thumbs img{ width:58px; height:58px; }
+  }
+
   /* ---------- SOLO (DECLARANT) LAYOUT ---------- */
   .main.solo{ max-width:760px; margin:0 auto; width:100%; }
   .solo-top{ display:flex; align-items:center; justify-content:space-between; padding:20px 0 6px; }
@@ -245,7 +277,23 @@
 
 <script>
 /* ============================= STATE & STORAGE ============================= */
-const ATELIERS = ["Atelier HITACHI","Atelier levage","Atelier Tour en fosse"];
+const ATELIERS = [
+  "HITACHI Remise",
+  "HITACHI VA",
+  "DIESEL",
+  "POSTE GASOIL",
+  "MAGASIN DIESEL",
+  "LABORATOIRE ÉLECTRONIQUE",
+  "MAGASIN LOCAL",
+  "TOUR EN FOSSE",
+  "AJUSTAGE",
+  "ANSALDO",
+  "APPROVISIONNEMENT",
+  "RH",
+  "COORDINATION",
+  "PRESTATAIRES MALOCO",
+  "INSTALLATION ET OUTILLAGE"
+];
 const CATEGORIES = ["Sécurité","Sûreté","Maintenance","Qualité","Environnement"];
 const GRAVITES = [
   {key:"faible", label:"Faible", color:"var(--green)"},
@@ -281,6 +329,32 @@ function daysBetween(start, end){
   return Math.max(0, Math.round(ms / 86400000));
 }
 
+function splitMulti(value){
+  return String(value || "").split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+}
+
+function treatmentUsersForAtelier(atelier){
+  return (state.users || []).filter(u=>{
+    if(u.role !== "traitement") return false;
+    return splitMulti(u.responsible_ateliers).includes(atelier);
+  });
+}
+
+function selectedTreatmentUsers(){
+  const select = document.getElementById("af_responsibles");
+  if(!select) return [];
+  const ids = Array.from(select.selectedOptions).map(option=>Number(option.value));
+  return (state.users || []).filter(u=>ids.includes(Number(u.id)));
+}
+
+function phonesForUsers(users){
+  const phones = [];
+  users.forEach(u=>splitMulti(u.phone_numbers).forEach(phone=>{
+    if(!phones.includes(phone)) phones.push(phone);
+  }));
+  return phones.join(", ");
+}
+
 function atelierPillHTML(){
   return `<div class="atelier-pill"><span class="qr-dot"></span> Atelier : <b>&nbsp;${state.atelierScanne}</b>
     ${state.qrAtelierLocked
@@ -314,7 +388,7 @@ function emptyForm(){
     description:"", gravite:"moyen", photos:[], localisation:"", atelier: ATELIERS[0] };
 }
 
-// Rôles ayant les mêmes prérogatives que le Responsable HSE dans le workflow
+// Rôles ayant les mêmes prérogatives que le Responsable QSSE dans le workflow
 function isHSERole(r){ return r==="hse" || r==="chef_centre" || r==="coordination"; }
 
 const hasStorage = typeof window.storage !== "undefined";
@@ -347,7 +421,7 @@ function nowStr(){ return new Date().toLocaleString("fr-FR"); }
 function pushHistory(dec, label){
   dec.historique.push({date: nowStr(), action: label});
 }
-// audience: "admin" (Responsable HSE, Chef de centre, Responsable Coordination uniquement)
+// audience: "admin" (Responsable QSSE, Chef de centre, Responsable Coordination uniquement)
 //        ou "all" (admins + Responsable Traitement — ex. résultat conforme / non conforme)
 function notify(dec, message, audience){
   state.notifications.unshift({id: Date.now()+Math.random(), declarationId: dec.id, message, date: nowStr(), read:false, audience: audience || "admin"});
@@ -393,7 +467,7 @@ function doAnalyse(id, payload){
   dec.graviteReelle = payload.graviteReelle;
   dec.analyse = { typeRisque:payload.typeRisque, causeProbable:payload.causeProbable, commentaire:payload.commentaire, date: nowStr() };
   dec.status = "analyse";
-  pushHistory(dec, "Analyse effectuée par le Responsable HSE — risque : " + payload.typeRisque);
+  pushHistory(dec, "Analyse effectuée par le Responsable QSSE — risque : " + payload.typeRisque);
   persist(); render(); toast("Analyse enregistrée.");
 }
 function doAffectation(id, payload){
@@ -433,7 +507,7 @@ function doIntervention(id, payload){
   dec.intervention = payload;
   dec.status = "realisee";
   pushHistory(dec, "Intervention réalisée — temps passé : " + payload.tempsPasse + " min");
-  notify(dec, "Intervention réalisée sur " + dec.id + ", en attente de vérification HSE");
+  notify(dec, "Intervention réalisée sur " + dec.id + ", en attente de vérification QSSE");
   persist(); render(); toast("Intervention enregistrée.");
 }
 function doVerification(id, conforme, commentaire){
@@ -560,6 +634,116 @@ async function exportDeclarationsPDF(){
   toast("Export PDF généré.");
 }
 
+function excelEscape(value){
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function excelImageLinks(photos){
+  const items = (photos || []).filter(Boolean);
+  if(!items.length) return "";
+  return items.map((src, idx)=>`<a href="${excelEscape(src)}">Image ${idx + 1}</a>`).join("<br>");
+}
+
+function dashboardSnapshotRows(declarations){
+  const total = declarations.length;
+  const open = declarations.filter(d=>d.status !== "cloture").length;
+  const closed = declarations.filter(d=>d.status === "cloture").length;
+  const critical = declarations.filter(d=>d.graviteReelle === "critique").length;
+  const byAtelier = {};
+  declarations.forEach(d=>{ byAtelier[d.atelier] = (byAtelier[d.atelier] || 0) + 1; });
+  const rows = [
+    ["Date export", nowStr()],
+    ["Total déclarations", total],
+    ["Déclarations ouvertes", open],
+    ["Déclarations clôturées", closed],
+    ["Déclarations critiques", critical],
+    ["Taux de clôture", total ? Math.round((closed / total) * 100) + "%" : "0%"]
+  ];
+  Object.entries(byAtelier).forEach(([atelier, count])=>rows.push(["Atelier - " + atelier, count]));
+  return rows;
+}
+
+function dashboardSnapshotImage(declarations){
+  const total = declarations.length;
+  const open = declarations.filter(d=>d.status !== "cloture").length;
+  const closed = declarations.filter(d=>d.status === "cloture").length;
+  const critical = declarations.filter(d=>d.graviteReelle === "critique").length;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="280" viewBox="0 0 900 280">
+    <rect width="900" height="280" fill="#14181D"/>
+    <text x="30" y="44" fill="#FF6A2B" font-family="Arial" font-size="26" font-weight="700">Gestion Précurseurs - Capture tableau de bord</text>
+    <text x="30" y="76" fill="#EDEBE4" font-family="Arial" font-size="15">Exporté le ${excelEscape(nowStr())}</text>
+    ${[
+      ["Total", total, "#FF6A2B"],
+      ["Ouvertes", open, "#F2B705"],
+      ["Clôturées", closed, "#2E9B6B"],
+      ["Critiques", critical, "#E4432B"]
+    ].map((kpi, idx)=>{
+      const x = 30 + idx * 210;
+      return `<rect x="${x}" y="105" width="185" height="110" rx="8" fill="#20262E" stroke="#2C333D"/>
+        <text x="${x+18}" y="146" fill="${kpi[2]}" font-family="Arial" font-size="34" font-weight="700">${kpi[1]}</text>
+        <text x="${x+18}" y="180" fill="#9AA3AD" font-family="Arial" font-size="16">${kpi[0]}</text>`;
+    }).join("")}
+  </svg>`;
+  return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+}
+
+function exportDeclarationsExcel(){
+  const rows = state.declarations.filter(d=>!state.atelierScanne || d.atelier === state.atelierScanne);
+  if(rows.length === 0){ toast("Aucune déclaration à exporter pour ces critères."); return; }
+  const snapshot = dashboardSnapshotRows(rows).map(r=>`<tr><td>${excelEscape(r[0])}</td><td>${excelEscape(r[1])}</td></tr>`).join("");
+  const snapshotImage = dashboardSnapshotImage(rows);
+  const bodyRows = rows.map(d=>`
+    <tr>
+      <td>${excelEscape(d.id)}</td>
+      <td>${excelEscape(d.description)}</td>
+      <td>${excelEscape(d.atelier)}</td>
+      <td>${excelEscape(d.categorie)}</td>
+      <td>${excelEscape(gInfo(d.graviteReelle).label)}</td>
+      <td>${excelEscape(STATUS_LABEL[d.status] || d.status)}</td>
+      <td>${excelEscape(d.dateCreation)}</td>
+      <td>${excelEscape((d.affectation && d.affectation.slaDate) || "")}</td>
+      <td>${excelEscape((d.cloture && d.cloture.dateCloture) || "")}</td>
+      <td>${excelImageLinks(d.declarationPhotos || d.photos)}</td>
+      <td>${excelImageLinks(d.interventionPhotos)}</td>
+    </tr>`).join("");
+  const html = `<!doctype html>
+  <html><head><meta charset="utf-8">
+  <style>
+    body{font-family:Arial,sans-serif;}
+    h1,h2{color:#8f2f0b;}
+    table{border-collapse:collapse;width:100%;margin-bottom:18px;}
+    th{background:#ff6a2b;color:#fff;}
+    th,td{border:1px solid #999;padding:7px;vertical-align:top;}
+  </style></head><body>
+    <h1>Archive Excel - Gestion Précurseurs</h1>
+    <h2>Capture du tableau de bord</h2>
+    <img src="${snapshotImage}" width="900" height="280">
+    <h2>Instantané du tableau de bord</h2>
+    <table>${snapshot}</table>
+    <h2>Déclarations</h2>
+    <table>
+      <thead><tr>
+        <th>Numéro précurseur</th><th>Nom précurseur</th><th>Atelier ciblé</th><th>Catégorie</th><th>Gravité</th><th>Statut</th>
+        <th>Date création</th><th>Date limite traitement</th><th>Date clôture</th><th>Images jointes à la déclaration</th><th>Images après intervention</th>
+      </tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+  </body></html>`;
+  const blob = new Blob(["\ufeff", html], {type:"application/vnd.ms-excel;charset=utf-8"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "archive_precurseurs_" + Date.now() + ".xls";
+  document.body.appendChild(link);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  link.remove();
+  toast("Fichier Excel généré.");
+}
+
 let toastTimer=null;
 function toast(msg){
   const el = document.getElementById("toast");
@@ -639,7 +823,7 @@ function historySummary(action){
   if(a.includes("affectation")) return "Le traitement a été affecté avec le responsable, la priorité, la date limite et le destinataire email.";
   if(a.includes("planification")) return "L'intervention a été planifiée avec la date, l'heure et les moyens prévus.";
   if(a.includes("intervention") || a.includes("realisee") || a.includes("réalisée")) return "Les actions correctives réalisées ont été renseignées.";
-  if(a.includes("verification") || a.includes("vérification") || a.includes("conforme") || a.includes("cloture") || a.includes("clôture")) return "La vérification HSE a été effectuée et la décision de conformité a été tracée.";
+  if(a.includes("verification") || a.includes("vérification") || a.includes("conforme") || a.includes("cloture") || a.includes("clôture")) return "La vérification QSSE a été effectuée et la décision de conformité a été tracée.";
   if(a.includes("email")) return "Une notification email a été traitée pour cette phase.";
   return "Action enregistrée dans le suivi de la déclaration.";
 }
@@ -649,7 +833,7 @@ function loginGateHTML(){
   const selectedRole = state.loginSelectedRole;
   const roles = [
     {k:"declarant", icon:"✚", name:"Déclarant", desc:"Émettre une déclaration"},
-    {k:"hse", icon:"🛡", name:"Responsable HSE", desc:"Admin"},
+    {k:"hse", icon:"🛡", name:"Responsable QSSE", desc:"Admin"},
     {k:"chef_centre", icon:"🏭", name:"Chef de centre", desc:"Admin"},
     {k:"coordination", icon:"🧭", name:"Resp. Coordination", desc:"Admin"},
     {k:"traitement", icon:"🔧", name:"Resp. Traitement", desc:"Traitement"},
@@ -724,7 +908,7 @@ function sidebarHTML(){
   const unread = state.notifications.filter(n=>!n.read && notifVisibleTo(n, role)).length;
   let items = [];
   if(isHSERole(role)){
-    // Responsable HSE, Chef de centre, Responsable Coordination : accès complet (admins)
+    // Responsable QSSE, Chef de centre, Responsable Coordination : accès complet (admins)
     items = [
       {k:"dashboard", label:"Tableau de bord", icon:"▦"},
       {k:"declarations", label:"Déclarations", icon:"☰"},
@@ -886,7 +1070,7 @@ function formHTML(){
       </label>
     </div>
     <div class="row2">
-      <div class="field"><label>Fonction</label><input type="text" id="f_fonction" value="${f.fonction}" placeholder="Ex. Technicien"></div>
+      <div class="field"><label>Fonction</label><input type="text" id="f_fonction" value="${f.fonction}" placeholder="Ex. Collaborateur"></div>
       <div class="field"><label>Service</label><input type="text" id="f_service" value="${f.service}" placeholder="Ex. Production"></div>
     </div>
     <div class="field">
@@ -921,7 +1105,7 @@ function kanbanHTML(){
   const exportBar = `<div class="section-header">
     <div style="font-size:12.5px;color:var(--text-dim);">${declarations.length} déclaration(s) affichée(s)${filterLabel} / ${state.declarations.length} au total</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-      <button class="btn small" id="btnExportPDF" ${declarations.length===0?'disabled':''}>⭳ Télécharger le PDF de traçabilité</button>
+      <button class="btn small" id="btnExportPDF" ${declarations.length===0?'disabled':''}>⭳ Télécharger l'archive Excel</button>
       ${state.role==="hse" ? `<button class="btn danger small" id="btnClearDeclarations" ${state.declarations.length===0?'disabled':''}>Supprimer toutes les déclarations</button>` : ""}
     </div>
   </div>`;
@@ -1036,20 +1220,27 @@ function actionBlockHTML(dec){
     <button class="btn" id="btnAnalyse" data-id="${dec.id}">Valider l'analyse</button>`;
   }
   if(isHSERole(role) && dec.status==="analyse"){
+    const treatmentUsers = treatmentUsersForAtelier(dec.atelier);
     return `
     <div class="section-title">Affectation du traitement (${roleLabel(role)})</div>
     <div class="row2">
       <div class="field"><label>Service chargé</label><input type="text" id="af_service" placeholder="Ex. Maintenance"></div>
-      <div class="field"><label>Responsable intervention</label><input type="text" id="af_resp" placeholder="Nom du responsable"></div>
-    </div>
-    <div class="row2">
       <div class="field"><label>Priorité</label>
         <select id="af_prio"><option>Basse</option><option selected>Normale</option><option>Haute</option><option>Urgente</option></select></div>
-      <div class="field"><label>Date limite (SLA)</label><input type="date" id="af_sla"></div>
     </div>
-    <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 techniciens, pièce détachée X"></div>
-    <div class="field"><label>Emails des responsables de traitement</label><input type="text" id="af_email" placeholder="Ex. s.elansari@oncf.ma; autre@oncf.ma"></div>
-    <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et envoyer la date limite par email</button>`;
+    <div class="row2">
+      <div class="field"><label>Date limite (SLA)</label><input type="date" id="af_sla"></div>
+      <div class="field"><label>Numéros WhatsApp</label><input type="text" id="af_phones" readonly placeholder="Sélectionnez les responsables"></div>
+    </div>
+    <div class="field">
+      <label>Responsables de traitement</label>
+      <select id="af_responsibles" multiple size="5">
+        ${treatmentUsers.map(u=>`<option value="${u.id}">${u.full_name} - ${u.phone_numbers || "Téléphone non renseigné"}</option>`).join("")}
+      </select>
+      ${treatmentUsers.length ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Aucun responsable de traitement n'est rattaché à l'atelier ${dec.atelier}.</div>`}
+    </div>
+    <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 collaborateurs, pièce détachée X"></div>
+    <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et notifier par WhatsApp</button>`;
   }
   // Traitement: planification
   if(role==="traitement" && dec.status==="affecte"){
@@ -1060,7 +1251,7 @@ function actionBlockHTML(dec){
       <div class="field"><label>Date</label><input type="date" id="p_date" ${deadlineDate?`max="${deadlineDate}"`:''}></div>
       <div class="field"><label>Heure</label><input type="time" id="p_heure"></div>
     </div>
-    <div class="field"><label>Techniciens affectés</label><input type="text" id="p_tech" placeholder="Noms des techniciens"></div>
+    <div class="field"><label>Collaborateurs affectés</label><input type="text" id="p_tech" placeholder="Noms des collaborateurs"></div>
     <div class="field"><label>Matériel nécessaire</label><input type="text" id="p_mat" placeholder="Ex. Clé dynamométrique, EPI"></div>
     <button class="btn" id="btnPlanifier" data-id="${dec.id}">Planifier</button>`;
   }
@@ -1094,7 +1285,7 @@ function actionBlockHTML(dec){
   }
   return `<div style="color:var(--text-dim);font-size:12.5px;margin:14px 0;">Aucune action disponible pour le rôle « ${roleLabel(role)} » à ce stade. Changez de rôle dans le menu latéral pour poursuivre le traitement.</div>`;
 }
-function roleLabel(r){ return {declarant:"Déclarant", hse:"Responsable HSE", chef_centre:"Chef de centre", coordination:"Responsable Coordination", traitement:"Responsable Traitement"}[r]; }
+function roleLabel(r){ return {declarant:"Déclarant", hse:"Responsable QSSE", chef_centre:"Chef de centre", coordination:"Responsable Coordination", traitement:"Responsable Traitement"}[r]; }
 
 /* ============================= EVENTS ============================= */
 function bindEvents(){
@@ -1177,10 +1368,10 @@ function bindEvents(){
     };
   });
   const btnExportPDF = document.getElementById("btnExportPDF");
-  if(btnExportPDF) btnExportPDF.onclick = exportDeclarationsPDF;
+  if(btnExportPDF) btnExportPDF.onclick = exportDeclarationsExcel;
   const btnClearDeclarations = document.getElementById("btnClearDeclarations");
   if(btnClearDeclarations) btnClearDeclarations.onclick = async ()=>{
-    const password = prompt("Saisissez le mot de passe HSE pour confirmer la remise à zéro de la plateforme.");
+    const password = prompt("Saisissez le mot de passe QSSE pour confirmer la remise à zéro de la plateforme.");
     if(!password) return;
     const ok = confirm("Cette action supprimera définitivement toutes les déclarations et leurs historiques. Confirmez-vous la remise à zéro ?");
     if(!ok) return;
@@ -1224,14 +1415,25 @@ function bindEvents(){
     });
   };
   const btnAffecter = document.getElementById("btnAffecter");
+  const afResponsibles = document.getElementById("af_responsibles");
+  if(afResponsibles) afResponsibles.onchange = ()=>{
+    const phonesInput = document.getElementById("af_phones");
+    if(phonesInput) phonesInput.value = phonesForUsers(selectedTreatmentUsers());
+  };
   if(btnAffecter) btnAffecter.onclick = ()=>{
+    const selectedUsers = selectedTreatmentUsers();
+    if(selectedUsers.length === 0){
+      toast("Sélectionnez au moins un responsable de traitement.");
+      return;
+    }
     doAffectation(btnAffecter.dataset.id, {
       service: document.getElementById("af_service").value || "Non précisé",
-      responsable: document.getElementById("af_resp").value || "Non précisé",
+      responsable: selectedUsers.map(u=>u.full_name).join(", ") || "Non précisé",
+      responsibleIds: selectedUsers.map(u=>Number(u.id)),
       priorite: document.getElementById("af_prio").value,
       slaDate: document.getElementById("af_sla").value || "—",
       ressources: document.getElementById("af_ress").value,
-      email: document.getElementById("af_email").value.trim()
+      phoneNumbers: (document.getElementById("af_phones") && document.getElementById("af_phones").value.trim()) || ""
     });
   };
   const btnPlanifier = document.getElementById("btnPlanifier");
@@ -1298,10 +1500,19 @@ function mediaUrl(path){
 }
 
 const urlAtelier = new URLSearchParams(window.location.search).get("atelier");
+const declarationScan = new URLSearchParams(window.location.search).get("declaration");
 if(urlAtelier && ATELIERS.includes(urlAtelier)){
   state.atelierScanne = urlAtelier;
   state.qrAtelierLocked = true;
   state.form.atelier = urlAtelier;
+  state.tab = "nouvelle";
+}else if(declarationScan){
+  apiToken = "";
+  localStorage.removeItem("gesprec_token");
+  localStorage.removeItem("gesprec_user");
+  state.qrAtelierLocked = false;
+  state.role = "declarant";
+  state.auth.loggedIn = true;
   state.tab = "nouvelle";
 }
 if(apiToken && savedUser){
@@ -1364,17 +1575,14 @@ function displayCategory(value){
   return map[value] || value;
 }
 
-const TREATMENT_ATELIERS = {
-  "traitement1@gesprec.local": "Atelier HITACHI",
-  "traitement2@gesprec.local": "Atelier levage",
-  "traitement3@gesprec.local": "Atelier Tour en fosse"
-};
-
 function applyUserAtelierScope(user){
-  const atelier = user && TREATMENT_ATELIERS[String(user.email || "").toLowerCase()];
-  if(!atelier) return;
-  state.atelierScanne = atelier;
-  state.form.atelier = atelier;
+  const ateliers = String((user && user.responsible_ateliers) || "")
+    .split(/[;,]/)
+    .map(x=>x.trim())
+    .filter(Boolean);
+  if(!ateliers.length) return;
+  state.atelierScanne = ateliers[0];
+  state.form.atelier = ateliers[0];
   state.qrAtelierLocked = true;
 }
 
@@ -1420,7 +1628,8 @@ function mapDeclaration(d){
       priorite: d.priority || "",
       slaDate: d.sla_date || "",
       ressources: d.resources || "",
-      email: d.assigned_email || ""
+      email: d.assigned_email || "",
+      telephones: d.assigned_phone_numbers || ""
     } : null,
     planification: d.planned_at ? {
       date: d.planned_date || "",
@@ -1479,7 +1688,7 @@ async function refreshData(){
     state.declarations = declarations.map(mapDeclaration);
     const notifications = await api("/notifications").catch(()=>[]);
     state.notifications = notifications.map(mapNotification);
-    if(state.role === "hse"){
+    if(isHSERole(state.role)){
       state.users = await api("/auth/users").catch(()=>[]);
     }
   }catch(e){
@@ -1505,7 +1714,7 @@ isHSERole = function(r){
 roleLabel = function(r){
   return {
     declarant:"Déclarant",
-    hse:"Responsable HSE",
+    hse:"Responsable QSSE",
     chef_technicentre_tmlc:"Chef de technicentre TMLC",
     chef_etablissement:"Chef d'établissement",
     coordination:"Responsable Coordination",
@@ -1517,7 +1726,7 @@ loginGateHTML = function(){
   const selectedRole = state.loginSelectedRole;
   const roles = [
     {k:"declarant", icon:"✚", name:"Déclarant", desc:"Émettre une déclaration"},
-    {k:"hse", icon:"▣", name:"Responsable HSE", desc:"Circuit de traitement"},
+    {k:"hse", icon:"▣", name:"Responsable QSSE", desc:"Circuit de traitement"},
     {k:"chef_technicentre_tmlc", icon:"▤", name:"Chef de technicentre TMLC", desc:"Circuit de traitement"},
     {k:"chef_etablissement", icon:"▦", name:"Chef d'établissement", desc:"Tableau de bord"},
     {k:"coordination", icon:"◇", name:"Responsable Coordination", desc:"Circuit de traitement"},
@@ -1641,16 +1850,13 @@ topbarHTML = function(){
 function qrCodesHTML(){
   return `<div class="panel">
     <div class="section-header">
-      <div style="font-size:12.5px;color:var(--text-dim);">Imprimez ces QR codes et placez-les dans chaque atelier.</div>
+      <div style="font-size:12.5px;color:var(--text-dim);">Imprimez ce QR code unique. Après le scan, le déclarant choisit l'atelier ciblé.</div>
       <a class="btn small" href="/qr/ateliers" target="_blank" style="text-decoration:none;">Ouvrir la page imprimable</a>
     </div>
-    <div class="kanban" style="grid-template-columns:repeat(3,1fr);">
-      ${ATELIERS.map(a=>`
-        <div class="panel" style="text-align:center;">
-          <h3>${a}</h3>
-          <img src="/qr/atelier.svg?name=${encodeURIComponent(a)}" style="width:180px;height:180px;background:#fff;padding:8px;border-radius:6px;">
-          <div style="font-size:11px;color:var(--text-dim);word-break:break-all;margin-top:8px;">${location.origin}/?atelier=${encodeURIComponent(a)}</div>
-        </div>`).join("")}
+    <div class="panel" style="text-align:center;max-width:420px;">
+      <h3>Création d'une déclaration</h3>
+      <img src="/qr/declaration.svg" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:6px;">
+      <div style="font-size:11px;color:var(--text-dim);word-break:break-all;margin-top:8px;">${location.origin}/?declaration=1</div>
     </div>
   </div>`;
 }
@@ -1658,23 +1864,27 @@ function qrCodesHTML(){
 function usersHTML(){
   const users = state.users || [];
   const roles = [
-    ["hse","Responsable HSE"],
+    ["hse","Responsable QSSE"],
     ["chef_technicentre_tmlc","Chef de technicentre TMLC"],
     ["chef_etablissement","Chef d'établissement"],
     ["coordination","Responsable Coordination"],
     ["traitement","Responsable Traitement"]
   ];
   return `<div class="panel">
-    <div class="section-title">Creer / modifier un utilisateur</div>
+    <div class="section-title">Créer / modifier un utilisateur</div>
     <input type="hidden" id="u_id">
     <div class="row2">
       <div class="field"><label>Email / identifiant</label><input type="text" id="u_email" placeholder="ex. traitement1@gesprec.local"></div>
       <div class="field"><label>Nom complet</label><input type="text" id="u_name" placeholder="Nom du responsable"></div>
     </div>
     <div class="row3">
-      <div class="field"><label>Role</label><select id="u_role">${roles.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join("")}</select></div>
+      <div class="field"><label>Rôle</label><select id="u_role">${roles.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join("")}</select></div>
       <div class="field"><label>Mot de passe</label><input type="text" id="u_password" placeholder="Nouveau mot de passe"></div>
-      <div class="field"><label>Actif</label><select id="u_active"><option value="true">Actif</option><option value="false">Inactif</option></select></div>
+      <div class="field"><label>Téléphones WhatsApp</label><input type="text" id="u_phone_numbers" placeholder="ex. +212600000000; +212611111111"></div>
+    </div>
+    <div class="field">
+      <label>Ateliers de responsabilité</label>
+      <select id="u_ateliers" multiple size="6">${ATELIERS.map(a=>`<option value="${a}">${a}</option>`).join("")}</select>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:18px;">
       <button class="btn small" id="btnSaveUser">Enregistrer</button>
@@ -1686,7 +1896,8 @@ function usersHTML(){
       <div class="notif-row">
         <div>
           <div style="font-size:13.5px;font-weight:600;">${u.full_name}</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${u.email} - ${roleLabel(u.role)} - ${u.is_active ? "Actif" : "Inactif"}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${u.email} - ${roleLabel(u.role)} - ${u.phone_numbers || "Téléphone non renseigné"}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">Ateliers : ${u.responsible_ateliers || "Aucun atelier renseigné"}</div>
         </div>
         <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;">
           <button class="btn secondary small" data-edit-user="${u.id}">Modifier</button>
@@ -1706,6 +1917,8 @@ function usersHTML(){
       <div class="field"><label>Email destinataire</label><input type="text" id="test_email_to" placeholder="ex. nom@entreprise.com"></div>
       <div class="field" style="display:flex;align-items:end;"><button class="btn small" id="btnTestEmail">Envoyer test</button></div>
     </div>
+    <div class="section-title">Rappels WhatsApp</div>
+    <button class="btn small" id="btnWhatsappReminders">Envoyer les rappels J-1</button>
   </div>`;
 }
 
@@ -1745,7 +1958,14 @@ bindEvents = function(){
       document.getElementById("u_email").value = u.email;
       document.getElementById("u_name").value = u.full_name;
       document.getElementById("u_role").value = u.role;
-      document.getElementById("u_active").value = String(u.is_active);
+      document.getElementById("u_phone_numbers").value = u.phone_numbers || "";
+      const ateliers = splitMulti(u.responsible_ateliers);
+      const atelierSelect = document.getElementById("u_ateliers");
+      if(atelierSelect){
+        Array.from(atelierSelect.options).forEach(option=>{
+          option.selected = ateliers.includes(option.value);
+        });
+      }
       document.getElementById("u_password").value = "";
     };
   });
@@ -1764,8 +1984,9 @@ bindEvents = function(){
   });
   const clearUser = document.getElementById("btnClearUser");
   if(clearUser) clearUser.onclick = ()=>{
-    ["u_id","u_email","u_name","u_password"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
-    const active = document.getElementById("u_active"); if(active) active.value = "true";
+    ["u_id","u_email","u_name","u_password","u_phone_numbers"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+    const atelierSelect = document.getElementById("u_ateliers");
+    if(atelierSelect) Array.from(atelierSelect.options).forEach(option=>{ option.selected = false; });
   };
   const saveUser = document.getElementById("btnSaveUser");
   if(saveUser) saveUser.onclick = async ()=>{
@@ -1774,7 +1995,9 @@ bindEvents = function(){
       email: document.getElementById("u_email").value.trim(),
       full_name: document.getElementById("u_name").value.trim(),
       role: document.getElementById("u_role").value,
-      is_active: document.getElementById("u_active").value === "true"
+      is_active: true,
+      phone_numbers: document.getElementById("u_phone_numbers").value.trim(),
+      responsible_ateliers: Array.from(document.getElementById("u_ateliers").selectedOptions).map(o=>o.value).join(", ")
     };
     const password = document.getElementById("u_password").value;
     if(password) payload.password = password;
@@ -1800,6 +2023,15 @@ bindEvents = function(){
       const r = await api("/system/email-test", {method:"POST", body:JSON.stringify({to_email: document.getElementById("test_email_to").value.trim()})});
       toast(r.sent ? "Email de test envoyé." : "SMTP non configuré.");
     }catch(e){ toast(e.message || "Test email impossible."); }
+  };
+  const whatsappReminders = document.getElementById("btnWhatsappReminders");
+  if(whatsappReminders) whatsappReminders.onclick = async ()=>{
+    try{
+      const r = await api("/system/whatsapp-reminders", {method:"POST"});
+      await refreshData();
+      render();
+      toast((r.processed || 0) + " rappel(s) WhatsApp J-1 traité(s).");
+    }catch(e){ toast(e.message || "Rappels WhatsApp impossibles."); }
   };
 };
 
@@ -1917,10 +2149,12 @@ doAffectation = async function(id, payload){
     await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
       service: payload.service,
       responsible: payload.responsable,
+      responsible_ids: payload.responsibleIds || [],
       priority: payload.priorite,
       sla_date: payload.slaDate,
       resources: payload.ressources,
-      email: payload.email || null
+      phone_numbers: payload.phoneNumbers || null,
+      email: null
     })});
     await refreshData(); render(); toast("Déclaration affectée.");
   }catch(e){ toast(e.message || "Affectation impossible."); }

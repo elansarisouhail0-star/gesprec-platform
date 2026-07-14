@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.constants import split_multi
 from app.database import get_db
 from app.dependencies import get_optional_user, require_hse_group, require_roles
 from app.emailer import send_email
@@ -22,25 +23,22 @@ from app.schemas import (
 )
 from app.security import verify_password
 from app.services import add_history, add_notification, next_reference
+from app.whatsapp import send_whatsapp_message, whatsapp_link
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
 
-TREATMENT_ATELIERS = {
-    "traitement1@gesprec.local": "Atelier HITACHI",
-    "traitement2@gesprec.local": "Atelier levage",
-    "traitement3@gesprec.local": "Atelier Tour en fosse",
-}
 
-
-def treatment_atelier(user: User) -> str | None:
-    return TREATMENT_ATELIERS.get(user.email.lower())
+def treatment_ateliers(user: User) -> list[str]:
+    if Role(user.role) != Role.traitement:
+        return []
+    return split_multi(user.responsible_ateliers)
 
 
 def assert_treatment_atelier_access(user: User, declaration: Declaration) -> None:
     if Role(user.role) != Role.traitement:
         return
-    allowed_atelier = treatment_atelier(user)
-    if allowed_atelier and declaration.atelier != allowed_atelier:
+    allowed_ateliers = treatment_ateliers(user)
+    if not allowed_ateliers or declaration.atelier not in allowed_ateliers:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Atelier non autorisé pour ce responsable traitement")
 
 
@@ -72,6 +70,59 @@ def parse_email_recipients(value: str | None) -> list[str]:
             detail="Adresse email invalide: " + ", ".join(invalid),
         )
     return recipients
+
+
+def parse_phone_recipients(value: str | None) -> list[str]:
+    return split_multi(value)
+
+
+def treatment_users_for_atelier(db: Session, atelier: str) -> list[User]:
+    users = list(db.scalars(select(User).where(User.role == Role.traitement, User.is_active == True)))  # noqa: E712
+    return [user for user in users if atelier in split_multi(user.responsible_ateliers)]
+
+
+def declaration_whatsapp_message(declaration: Declaration) -> str:
+    return (
+        "Bonjour,\n"
+        f"Vous avez reçu une déclaration Gesprec au nom de votre atelier {declaration.atelier}.\n"
+        f"Référence : {declaration.reference}\n"
+        "Merci de visiter la plateforme pour consulter et traiter la déclaration."
+    )
+
+
+def deadline_whatsapp_message(declaration: Declaration) -> str:
+    return (
+        "Bonjour,\n"
+        f"Rappel Gesprec : la déclaration {declaration.reference} arrive à sa date limite le {declaration.sla_date or '-'}.\n"
+        f"Atelier : {declaration.atelier}\n"
+        "Merci de finaliser le traitement dans les délais."
+    )
+
+
+def send_or_trace_whatsapp(db: Session, declaration: Declaration, phones: list[str], message: str, label: str, user: User | None = None) -> None:
+    if not phones:
+        add_history(db, declaration, f"{label} - aucun numéro WhatsApp renseigné", user)
+        return
+    sent_count = 0
+    links = []
+    for phone in phones:
+        try:
+            if send_whatsapp_message(phone, message):
+                sent_count += 1
+        except Exception as exc:
+            add_history(db, declaration, f"{label} - échec WhatsApp vers {phone} : {exc}", user)
+        link = whatsapp_link(phone, message)
+        if link:
+            links.append(link)
+    if sent_count == len(phones):
+        add_history(db, declaration, f"{label} - message WhatsApp envoyé à {sent_count}/{len(phones)} destinataire(s)", user)
+    else:
+        add_history(
+            db,
+            declaration,
+            f"{label} - WhatsApp non envoyé automatiquement ({sent_count}/{len(phones)}). Liens à ouvrir : {' | '.join(links) or '-'}",
+            user,
+        )
 
 
 def load_declaration(db: Session, declaration_id: int) -> Declaration:
@@ -124,6 +175,25 @@ def create_declaration(
         f"{prefix}Nouvelle déclaration {declaration.reference} ({declaration.category}) sur {declaration.atelier}",
         Audience.admin,
     )
+    treatment_users = treatment_users_for_atelier(db, declaration.atelier)
+    phones = []
+    for treatment_user in treatment_users:
+        phones.extend(parse_phone_recipients(treatment_user.phone_numbers))
+    if treatment_users:
+        add_notification(
+            db,
+            declaration,
+            f"Nouvelle déclaration {declaration.reference} à traiter sur {declaration.atelier}",
+            Audience.all,
+        )
+    send_or_trace_whatsapp(
+        db,
+        declaration,
+        phones,
+        declaration_whatsapp_message(declaration),
+        "Phase déclaration - notification WhatsApp atelier",
+        user,
+    )
     db.commit()
     db.refresh(declaration)
     return load_declaration(db, declaration.id)
@@ -140,9 +210,11 @@ def list_declarations(
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[Declaration]:
     stmt = select(Declaration).options(selectinload(Declaration.photos), selectinload(Declaration.history))
-    allowed_atelier = treatment_atelier(user)
-    if allowed_atelier:
-        stmt = stmt.where(Declaration.atelier == allowed_atelier)
+    allowed_ateliers = treatment_ateliers(user)
+    if Role(user.role) == Role.traitement and not allowed_ateliers:
+        return []
+    if allowed_ateliers:
+        stmt = stmt.where(Declaration.atelier.in_(allowed_ateliers))
     if status_filter:
         stmt = stmt.where(Declaration.status == status_filter)
     if atelier:
@@ -161,7 +233,7 @@ def delete_all_declarations(
     user: User = Depends(require_hse_group),
 ) -> None:
     if not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe HSE incorrect")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe QSSE incorrect")
     declarations = list(db.scalars(select(Declaration)))
     for declaration in declarations:
         db.delete(declaration)
@@ -215,13 +287,30 @@ def assign_declaration(
 ) -> Declaration:
     declaration = load_declaration(db, declaration_id)
     assert_status(declaration, Status.analyse)
+    selected_users = []
+    if payload.responsible_ids:
+        selected_users = list(db.scalars(select(User).where(User.id.in_(payload.responsible_ids), User.role == Role.traitement)))
+        invalid_users = [user for user in selected_users if declaration.atelier not in split_multi(user.responsible_ateliers)]
+        if invalid_users:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Un responsable sélectionné n'est pas rattaché à l'atelier ciblé",
+            )
+    selected_names = [user.full_name for user in selected_users]
+    selected_phones: list[str] = []
+    for selected_user in selected_users:
+        selected_phones.extend(parse_phone_recipients(selected_user.phone_numbers))
+    payload_phones = parse_phone_recipients(payload.phone_numbers)
+    phone_recipients = list(dict.fromkeys(selected_phones + payload_phones))
+    responsible_label = ", ".join(selected_names) if selected_names else payload.responsible
     declaration.assigned_service = payload.service
-    declaration.assigned_responsible = payload.responsible
+    declaration.assigned_responsible = responsible_label
     declaration.priority = payload.priority
     declaration.sla_date = payload.sla_date
     declaration.resources = payload.resources
     recipients = parse_email_recipients(payload.email)
     declaration.assigned_email = ", ".join(recipients) if recipients else None
+    declaration.assigned_phone_numbers = ", ".join(phone_recipients) if phone_recipients else None
     declaration.assigned_at = utcnow()
     declaration.assigned_by_id = user.id
     declaration.status = Status.affecte
@@ -229,9 +318,9 @@ def assign_declaration(
         db,
         declaration,
         (
-            f"Phase affectation - service: {payload.service}; responsable: {payload.responsible}; "
+            f"Phase affectation - service: {payload.service}; responsable: {responsible_label}; "
             f"priorité : {payload.priority}; date limite : {payload.sla_date or '-'}; "
-            f"destinataire email : {declaration.assigned_email or '-'}"
+            f"destinataire(s) WhatsApp : {declaration.assigned_phone_numbers or '-'}"
         ),
         user,
     )
@@ -246,7 +335,7 @@ def assign_declaration(
                 f"Atelier : {declaration.atelier}\n"
                 f"Gravité : {declaration.real_gravity}\n"
                 f"Service : {payload.service}\n"
-                f"Responsable : {payload.responsible}\n"
+                f"Responsable : {responsible_label}\n"
                 f"Priorité : {payload.priority}\n"
                 f"Date limite SLA : {payload.sla_date or '-'}\n\n"
                 "Merci de planifier et réaliser le traitement dans les délais.\n"
@@ -268,6 +357,14 @@ def assign_declaration(
             add_history(db, declaration, f"Phase affectation - échec de l'envoi de l'email de date limite aux destinataires {', '.join(recipients)} : {exc}", user)
     else:
         add_history(db, declaration, "Phase affectation - aucun destinataire email renseigné", user)
+    send_or_trace_whatsapp(
+        db,
+        declaration,
+        phone_recipients,
+        deadline_whatsapp_message(declaration),
+        "Phase affectation - notification WhatsApp de date limite",
+        user,
+    )
     db.commit()
     return load_declaration(db, declaration_id)
 
@@ -301,7 +398,7 @@ def plan_declaration(
     add_history(
         db,
         declaration,
-        f"Phase planification - intervention planifiée le {payload.date} à {payload.time}; techniciens : {payload.technicians or '-'}; matériel : {payload.material or '-'}",
+        f"Phase planification - intervention planifiée le {payload.date} à {payload.time}; collaborateurs : {payload.technicians or '-'}; matériel : {payload.material or '-'}",
         user,
     )
     add_notification(db, declaration, f"Déclaration {declaration.reference} planifiée", Audience.admin)

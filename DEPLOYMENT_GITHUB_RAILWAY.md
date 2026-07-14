@@ -84,6 +84,8 @@ SEED_DEFAULT_USERS=true
 UPLOAD_DIR=/app/uploads
 MAX_UPLOAD_MB=8
 PUBLIC_BASE_URL=https://votre-domaine-railway.up.railway.app
+WHATSAPP_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USERNAME=
@@ -142,15 +144,26 @@ SEED_DEFAULT_USERS=false
 
 Puis redeployer.
 
-## 7 bis. QR codes et email
+## 7 bis. QR code et WhatsApp
 
-Les QR codes sont disponibles ici:
+Le QR code unique est disponible ici:
 
 ```text
 https://VOTRE_DOMAINE_RAILWAY/qr/ateliers
 ```
 
-Pour l'envoi d'emails, il faut un vrai compte SMTP. Par exemple le SMTP de votre entreprise, Gmail avec mot de passe d'application, Brevo, Mailgun ou SendGrid.
+Le declarant scanne ce QR code, arrive directement sur le formulaire, puis choisit l'atelier cible.
+
+Pour l'envoi automatique des messages WhatsApp, il faut renseigner les identifiants WhatsApp Cloud API:
+
+```text
+WHATSAPP_TOKEN=votre_token_meta
+WHATSAPP_PHONE_NUMBER_ID=votre_phone_number_id
+```
+
+Sans ces variables, Gesprec conserve les traces et genere des liens `wa.me` dans l'historique, mais l'envoi automatique ne part pas.
+
+Pour l'envoi d'emails de secours, il faut un vrai compte SMTP. Par exemple le SMTP de votre entreprise, Gmail avec mot de passe d'application, Brevo, Mailgun ou SendGrid.
 
 Variables a renseigner:
 
@@ -163,7 +176,7 @@ SMTP_FROM=gesprec@votre-domaine.com
 SMTP_TLS=true
 ```
 
-Le HSE peut tester l'envoi depuis l'onglet `Utilisateurs`.
+Le QSSE peut tester l'envoi email et declencher les rappels WhatsApp J-1 depuis l'onglet `Utilisateurs`.
 
 ## 8. Verification apres deploiement
 
