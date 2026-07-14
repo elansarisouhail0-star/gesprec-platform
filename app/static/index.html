@@ -766,14 +766,12 @@ function dashboardSnapshotImage(declarations, snapshotRows){
 }
 
 async function exportDeclarationsExcel(){
-  const rows = state.declarations.filter(d=>!state.atelierScanne || d.atelier === state.atelierScanne);
-  if(rows.length === 0){ toast("Aucune declaration a exporter pour ces criteres."); return; }
-  const params = new URLSearchParams();
-  if(state.atelierScanne) params.set("atelier", state.atelierScanne);
+  const rows = [...state.declarations];
+  if(rows.length === 0){ toast("Aucune declaration a exporter."); return; }
   const headers = {};
   if(apiToken) headers.Authorization = "Bearer " + apiToken;
   try{
-    const res = await fetch(API_BASE + "/declarations/export.xlsx" + (params.toString() ? "?" + params.toString() : ""), {headers});
+    const res = await fetch(API_BASE + "/declarations/export.xlsx", {headers});
     if(!res.ok){
       const raw = await res.text();
       throw new Error(raw || "Export Excel impossible.");
@@ -1153,7 +1151,7 @@ function kanbanHTML(){
   const exportBar = `<div class="section-header">
     <div style="font-size:12.5px;color:var(--text-dim);">${declarations.length} déclaration(s) affichée(s)${filterLabel} / ${state.declarations.length} au total</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-      <button class="btn small" id="btnExportPDF" ${declarations.length===0?'disabled':''}>⭳ Télécharger l'archive Excel</button>
+      <button class="btn small" id="btnExportPDF" ${state.declarations.length===0?'disabled':''}>⭳ Télécharger l'archive Excel global</button>
       ${state.role==="hse" ? `<button class="btn danger small" id="btnClearDeclarations" ${state.declarations.length===0?'disabled':''}>Supprimer toutes les déclarations</button>` : ""}
     </div>
   </div>`;

@@ -233,11 +233,8 @@ def list_declarations(
 def export_declarations_xlsx(
     db: Session = Depends(get_db),
     user: User = Depends(require_hse_group),
-    atelier: str | None = None,
 ) -> StreamingResponse:
     stmt = select(Declaration).options(selectinload(Declaration.photos), selectinload(Declaration.history))
-    if atelier:
-        stmt = stmt.where(Declaration.atelier == atelier)
     declarations = list(db.scalars(stmt.order_by(desc(Declaration.created_at))).unique())
     content = build_declarations_xlsx(declarations)
     filename = f"archive_precurseurs_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
