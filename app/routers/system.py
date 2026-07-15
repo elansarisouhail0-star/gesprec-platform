@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.emailer import send_email, smtp_enabled
 from app.constants import split_multi
 from app.models import Declaration, HistoryEvent, Role, Status, User
-from app.routers.declarations import deadline_whatsapp_message, send_or_trace_whatsapp
+from app.routers.declarations import send_or_trace_whatsapp
 from app.whatsapp import send_whatsapp_message, whatsapp_enabled, whatsapp_link
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -87,8 +87,8 @@ def process_whatsapp_reminders(db: Session, user: User | None = None) -> int:
     declarations = list(
         db.scalars(
             select(Declaration).where(
-                Declaration.sla_date == target,
-                Declaration.status != Status.cloture,
+                or_(Declaration.planned_date == target, Declaration.sla_date == target),
+                Declaration.status.in_([Status.affecte, Status.planifie]),
             )
         )
     )
@@ -97,7 +97,7 @@ def process_whatsapp_reminders(db: Session, user: User | None = None) -> int:
         already_sent = db.scalar(
             select(HistoryEvent).where(
                 HistoryEvent.declaration_id == declaration.id,
-                HistoryEvent.action.like("%Rappel WhatsApp J-1%"),
+                HistoryEvent.action.like(f"%Rappel WhatsApp J-1%{target}%"),
             )
         )
         if already_sent:
@@ -107,10 +107,22 @@ def process_whatsapp_reminders(db: Session, user: User | None = None) -> int:
             db,
             declaration,
             phones,
-            deadline_whatsapp_message(declaration),
-            "Rappel WhatsApp J-1",
+            reminder_j1_message(declaration),
+            f"Rappel WhatsApp J-1 - {target}",
             user,
         )
         processed += 1
     db.commit()
     return processed
+
+
+def reminder_j1_message(declaration: Declaration) -> str:
+    planned = declaration.planned_date or "-"
+    deadline = declaration.sla_date or "-"
+    return (
+        f"Rappel Gesprec J-1 - Declaration {declaration.reference}\n"
+        f"Atelier: {declaration.atelier}\n"
+        f"Date planifiee: {planned}\n"
+        f"Deadline: {deadline}\n"
+        "La declaration est encore en attente de traitement. Merci de finaliser l'action dans les delais."
+    )

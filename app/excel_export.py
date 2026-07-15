@@ -29,22 +29,22 @@ def _cell_ref(row: int, col: int) -> str:
     return f"{name}{row}"
 
 
-def _inline_cell(row: int, col: int, value: object) -> str:
-    return f'<c r="{_cell_ref(row, col)}" t="inlineStr"><is><t>{_xml(value)}</t></is></c>'
+def _inline_cell(row: int, col: int, value: object, style: int = 1) -> str:
+    return f'<c r="{_cell_ref(row, col)}" t="inlineStr" s="{style}"><is><t>{_xml(value)}</t></is></c>'
 
 
-def _number_cell(row: int, col: int, value: int | float) -> str:
-    return f'<c r="{_cell_ref(row, col)}"><v>{value}</v></c>'
+def _number_cell(row: int, col: int, value: int | float, style: int = 1) -> str:
+    return f'<c r="{_cell_ref(row, col)}" s="{style}"><v>{value}</v></c>'
 
 
-def _row(row_idx: int, values: list[object], height: int | None = None) -> str:
+def _row(row_idx: int, values: list[object], height: int | None = None, style: int = 1) -> str:
     height_attr = f' ht="{height}" customHeight="1"' if height else ""
     cells = []
     for col_idx, value in enumerate(values, 1):
         if isinstance(value, (int, float)) and not isinstance(value, bool):
-            cells.append(_number_cell(row_idx, col_idx, value))
+            cells.append(_number_cell(row_idx, col_idx, value, style))
         else:
-            cells.append(_inline_cell(row_idx, col_idx, value))
+            cells.append(_inline_cell(row_idx, col_idx, value, style))
     return f'<row r="{row_idx}"{height_attr}>{"".join(cells)}</row>'
 
 
@@ -56,12 +56,12 @@ def _sheet_xml(rows: list[str], max_row: int, max_col: int, drawing: bool = Fals
   <sheetViews><sheetView workbookViewId="0"/></sheetViews>
   <sheetFormatPr defaultRowHeight="18"/>
   <cols>
-    <col min="1" max="1" width="24" customWidth="1"/>
-    <col min="2" max="2" width="42" customWidth="1"/>
-    <col min="3" max="3" width="24" customWidth="1"/>
-    <col min="4" max="8" width="20" customWidth="1"/>
-    <col min="9" max="9" width="20" customWidth="1"/>
-    <col min="10" max="11" width="26" customWidth="1"/>
+    <col min="1" max="1" width="25" customWidth="1"/>
+    <col min="2" max="2" width="46" customWidth="1"/>
+    <col min="3" max="3" width="26" customWidth="1"/>
+    <col min="4" max="8" width="21" customWidth="1"/>
+    <col min="9" max="9" width="22" customWidth="1"/>
+    <col min="10" max="11" width="30" customWidth="1"/>
   </cols>
   <sheetData>{"".join(rows)}</sheetData>
   {drawing_xml}
@@ -97,6 +97,7 @@ def _dashboard_snapshot_svg(declarations: list[Declaration]) -> bytes:
     closure_rate = round((closed / total) * 100) if total else 0
     by_atelier = Counter(d.atelier for d in declarations)
     by_category = Counter(_value(d.category) for d in declarations)
+    by_status = Counter(_status_label(d.status) for d in declarations)
     generated_at = datetime.now().strftime("%d/%m/%Y %H:%M")
     kpis = [
         ("Total", total, "#FF6A2B"),
@@ -120,18 +121,28 @@ def _dashboard_snapshot_svg(declarations: list[Declaration]) -> bytes:
         )
     category_lines = []
     for idx, (category, count) in enumerate(by_category.most_common(5)):
+        width = 26 + (count / max(total, 1)) * 250
         category_lines.append(
-            f'<text x="480" y="{252 + idx * 24}" fill="#EDEBE4" font-family="Arial" font-size="15">{_xml(category)} : {_xml(count)}</text>'
+            f'<rect x="478" y="{238 + idx * 24}" width="{width:.0f}" height="13" rx="6" fill="#FF6A2B" opacity=".8"/>'
+            f'<text x="488" y="{250 + idx * 24}" fill="#FFFFFF" font-family="Arial" font-size="13">{_xml(category)} : {_xml(count)}</text>'
+        )
+    status_lines = []
+    for idx, (status, count) in enumerate(by_status.most_common(5)):
+        status_lines.append(
+            f'<text x="720" y="{252 + idx * 24}" fill="#EDEBE4" font-family="Arial" font-size="14">{_xml(status)} : {_xml(count)}</text>'
         )
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="900" height="390" viewBox="0 0 900 390">
   <rect width="900" height="390" fill="#14181D"/>
-  <text x="30" y="44" fill="#FF6A2B" font-family="Arial" font-size="26" font-weight="700">Gestion Precurseurs - Capture tableau de bord</text>
+  <rect x="18" y="18" width="864" height="354" rx="12" fill="#1B2128" stroke="#2C333D"/>
+  <text x="30" y="50" fill="#FF6A2B" font-family="Arial" font-size="26" font-weight="700">Gestion Precurseurs - Tableau de bord</text>
   <text x="30" y="76" fill="#EDEBE4" font-family="Arial" font-size="15">Archive demandee le {_xml(generated_at)}</text>
   {"".join(cards)}
   <text x="30" y="230" fill="#FF6A2B" font-family="Arial" font-size="17" font-weight="700">Repartition par atelier</text>
   {"".join(atelier_lines)}
   <text x="478" y="230" fill="#FF6A2B" font-family="Arial" font-size="17" font-weight="700">Repartition par categorie</text>
   {"".join(category_lines)}
+  <text x="718" y="230" fill="#FF6A2B" font-family="Arial" font-size="17" font-weight="700">Statuts</text>
+  {"".join(status_lines)}
 </svg>'''
     return svg.encode("utf-8")
 
@@ -243,7 +254,22 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
     summary_values.append(["", ""])
     summary_values.append(["Statistiques par gravite", ""])
     summary_values.extend([gravity, count] for gravity, count in sorted(gravities.items()))
-    summary_rows = [_row(idx, row) for idx, row in enumerate(summary_values, 1)]
+    summary_rows = []
+    section_titles = {
+        "Statistiques par statut",
+        "Statistiques par atelier",
+        "Statistiques par categorie",
+        "Statistiques par gravite",
+    }
+    for idx, row in enumerate(summary_values, 1):
+        if idx == 1:
+            summary_rows.append(_row(idx, row, height=28, style=3))
+        elif row[0] in section_titles:
+            summary_rows.append(_row(idx, row, height=24, style=4))
+        elif not any(str(value) for value in row):
+            summary_rows.append(_row(idx, row, height=10, style=1))
+        else:
+            summary_rows.append(_row(idx, row, style=1))
 
     headers = [
         "Numero precurseur",
@@ -258,7 +284,7 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
         "Images jointes a la declaration",
         "Images apres intervention",
     ]
-    declaration_rows = [_row(1, headers, height=24)]
+    declaration_rows = [_row(1, headers, height=28, style=2)]
     dashboard_images: list[dict[str, object]] = [
         {"row": 1, "col": 4, "ext": "svg", "media": "dashboard.svg", "cx": DASHBOARD_CX, "cy": DASHBOARD_CY}
     ]
@@ -285,7 +311,7 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
                 f"Image {idx + 1}" if idx < len(intervention_photos) else "",
             ]
             has_photo = idx < len(declaration_photos) or idx < len(intervention_photos)
-            declaration_rows.append(_row(current_row, values, height=92 if has_photo else None))
+            declaration_rows.append(_row(current_row, values, height=96 if has_photo else None, style=1))
             for col, photos in ((10, declaration_photos), (11, intervention_photos)):
                 if idx >= len(photos):
                     continue
@@ -328,7 +354,33 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
   <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>''')
         archive.writestr("xl/styles.xml", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="1"><xf/></cellXfs></styleSheet>''')
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="4">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><color rgb="FFFF6A2B"/><sz val="15"/><name val="Calibri"/></font>
+    <font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="5">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF14181D"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFF6A2B"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF4A2B23"/><bgColor indexed="64"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border/>
+    <border><left style="thin"><color rgb="FF8B98A8"/></left><right style="thin"><color rgb="FF8B98A8"/></right><top style="thin"><color rgb="FF8B98A8"/></top><bottom style="thin"><color rgb="FF8B98A8"/></bottom></border>
+  </borders>
+  <cellStyleXfs count="1"><xf fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="5">
+    <xf fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+  </cellXfs>
+</styleSheet>''')
         archive.writestr("xl/worksheets/sheet1.xml", _sheet_xml(summary_rows, max(len(summary_rows), 1), 8, drawing=bool(dashboard_images)))
         archive.writestr("xl/worksheets/sheet2.xml", _sheet_xml(declaration_rows, max(current_row - 1, 1), 11, drawing=bool(declaration_images)))
         if dashboard_images:

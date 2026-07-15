@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -210,17 +210,21 @@
 
   /* ---------- AUTH / LOGIN GATE ---------- */
   .login-wrap{
-    min-height:100vh; width:100%; display:flex; align-items:flex-start; justify-content:center; padding:2vh 30px 30px;
+    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:22vh 30px 18vh;
     background:
       linear-gradient(90deg, rgba(7,13,19,.28), rgba(7,13,19,.38)),
-      url("/assets/profile-background.jpg") center center / 100% 100% no-repeat;
+      url("/profile-background.jpg") center center / 100% 100% no-repeat;
   }
   .login-card{
-    width:100%; max-width:560px; background:rgba(20,24,29,.66); border:1px solid rgba(255,255,255,.22);
+    width:100%; max-width:560px; background:rgba(20,24,29,.72); border:1px solid rgba(255,255,255,.22);
     border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.38);
     backdrop-filter:blur(7px);
   }
-  .login-card.profile-choice-card{ margin:0 auto auto; }
+  .login-card.profile-choice-card{ margin:0 auto; }
+  .receipt-banner{
+    border:1px solid rgba(46,155,107,.55); background:rgba(46,155,107,.16); color:#eafff4;
+    border-radius:10px; padding:11px 13px; margin-bottom:14px; text-align:center; font-weight:700;
+  }
   .login-sub{ text-align:center; color:#fff; font-size:15px; margin-bottom:16px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.45); }
   .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px; }
   .role-card{
@@ -406,11 +410,16 @@ function selectedPhoneListHTML(users){
 
 function atelierPillHTML(){
   const lockAtelier = state.qrAtelierLocked && state.role === "declarant";
-  return `<div class="atelier-pill"><span class="qr-dot"></span> Atelier : <b>&nbsp;${state.atelierScanne}</b>
+  const allLabel = state.tab === "notifications" ? "Toutes les notifications" : "Toutes les déclarations";
+  const selectedLabel = state.atelierScanne || allLabel;
+  const options = [`<option value="" ${!state.atelierScanne?'selected':''}>${allLabel}</option>`]
+    .concat(ATELIERS.map(a=>`<option value="${a}" ${a===state.atelierScanne?'selected':''}>${a}</option>`))
+    .join("");
+  return `<div class="atelier-pill"><span class="qr-dot"></span> Atelier : <b>&nbsp;${selectedLabel}</b>
     ${lockAtelier
       ? `<span class="locked-atelier">${state.atelierScanne}</span>`
       : `<select id="atelierSelect" style="margin-left:8px;background:transparent;border:none;color:var(--text-dim);font-size:12px;">
-          ${ATELIERS.map(a=>`<option ${a===state.atelierScanne?'selected':''}>${a}</option>`).join("")}
+          ${options}
         </select>`}
   </div>`;
 }
@@ -420,7 +429,7 @@ let state = {
   loginSelectedRole: null,     // rôle choisi sur l'écran de connexion
   loginForm: { error:"" },
   role: null,                  // declarant | hse | chef_centre | coordination | traitement
-  atelierScanne: ATELIERS[0],
+  atelierScanne: "",
   qrAtelierLocked: false,
   tab: "dashboard",
   declarations: [],
@@ -431,6 +440,7 @@ let state = {
   previewImage: null,
   currentUser: null,
   whatsappStatus: null,
+  lastDeclarationReceipt: null,
   fromQrScan: false,
   form: emptyForm()
 };
@@ -926,7 +936,7 @@ function soloTopHTML(){
 
 function bindLoginEvents(){
   document.querySelectorAll(".role-card").forEach(el=>{
-    el.onclick = ()=>{ state.loginSelectedRole = el.dataset.role; state.loginForm.error=""; render(); };
+    el.onclick = ()=>{ state.loginSelectedRole = el.dataset.role; state.loginForm.error=""; if(el.dataset.role !== "declarant") state.lastDeclarationReceipt = null; render(); };
   });
   const btnEnterDeclarant = document.getElementById("btnEnterDeclarant");
   if(btnEnterDeclarant) btnEnterDeclarant.onclick = ()=>{
@@ -1795,6 +1805,7 @@ loginGateHTML = function(){
   <div class="login-wrap">
     <div class="login-card profile-choice-card">
       <div class="login-sub">Sélectionnez votre profil pour continuer</div>
+      ${state.lastDeclarationReceipt ? `<div class="receipt-banner">Déclaration reçue avec succès<br>Numéro : ${state.lastDeclarationReceipt}</div>` : ""}
       <div class="role-grid">
         ${roles.map(r=>`
           <div class="role-card ${selectedRole===r.k?'sel':''}" data-role="${r.k}">
@@ -1819,7 +1830,7 @@ loginGateHTML = function(){
 
 bindLoginEvents = function(){
   document.querySelectorAll(".role-card").forEach(el=>{
-    el.onclick = ()=>{ state.loginSelectedRole = el.dataset.role; state.loginForm.error=""; render(); };
+    el.onclick = ()=>{ state.loginSelectedRole = el.dataset.role; state.loginForm.error=""; if(el.dataset.role !== "declarant") state.lastDeclarationReceipt = null; render(); };
   });
   const btnEnterDeclarant = document.getElementById("btnEnterDeclarant");
   if(btnEnterDeclarant) btnEnterDeclarant.onclick = ()=>{
@@ -1918,8 +1929,6 @@ function qrCodesHTML(){
 
 function usersHTML(){
   const users = state.users || [];
-  const wa = state.whatsappStatus || {};
-  const waReady = !!wa.whatsapp_enabled;
   const roles = [
     ["hse","Responsable QSSE"],
     ["chef_technicentre_tmlc","Chef de technicentre TMLC"],
@@ -1969,22 +1978,6 @@ function usersHTML(){
     </div>
     <button class="btn small" id="btnChangeMyPassword">Changer mon mot de passe</button>
 
-    <div class="section-title">Test email SMTP</div>
-    <div class="row2">
-      <div class="field"><label>Email destinataire</label><input type="text" id="test_email_to" placeholder="ex. nom@entreprise.com"></div>
-      <div class="field" style="display:flex;align-items:end;"><button class="btn small" id="btnTestEmail">Envoyer test</button></div>
-    </div>
-    <div class="section-title">Rappels WhatsApp</div>
-    <div class="hist-detail" style="display:block;margin-bottom:10px;">
-      Statut WhatsApp : <b>${waReady ? "configure" : "non configure"}</b><br>
-      Token Meta : ${wa.token_configured ? "OK" : "manquant"} - Phone Number ID : ${wa.phone_number_id_configured ? "OK" : "manquant"}<br>
-      Variables Railway a renseigner : WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID.
-    </div>
-    <div class="row2">
-      <div class="field"><label>Numero WhatsApp de test</label><input type="text" id="test_whatsapp_to" placeholder="ex. +212600000000"></div>
-      <div class="field" style="display:flex;align-items:end;"><button class="btn small" id="btnTestWhatsapp">Envoyer test WhatsApp</button></div>
-    </div>
-    <button class="btn small" id="btnWhatsappReminders">Envoyer les rappels J-1</button>
   </div>`;
 }
 
@@ -2083,38 +2076,6 @@ bindEvents = function(){
       toast("Mot de passe changé.");
     }catch(e){ toast(e.message || "Changement impossible."); }
   };
-  const testEmail = document.getElementById("btnTestEmail");
-  if(testEmail) testEmail.onclick = async ()=>{
-    try{
-      const r = await api("/system/email-test", {method:"POST", body:JSON.stringify({to_email: document.getElementById("test_email_to").value.trim()})});
-      toast(r.sent ? "Email de test envoyé." : "SMTP non configuré.");
-    }catch(e){ toast(e.message || "Test email impossible."); }
-  };
-  const testWhatsapp = document.getElementById("btnTestWhatsapp");
-  if(testWhatsapp) testWhatsapp.onclick = async ()=>{
-    const phone = (document.getElementById("test_whatsapp_to").value || "").trim();
-    if(!phone){ toast("Saisissez un numero WhatsApp de test."); return; }
-    try{
-      const r = await api("/system/whatsapp-test", {method:"POST", body:JSON.stringify({phone_number: phone})});
-      if(r.sent){
-        toast("Message WhatsApp de test envoye.");
-      }else if(r.manual_link){
-        window.open(r.manual_link, "_blank");
-        toast("WhatsApp automatique non configure. Lien manuel ouvert.");
-      }else{
-        toast("WhatsApp automatique non configure.");
-      }
-    }catch(e){ toast(e.message || "Test WhatsApp impossible."); }
-  };
-  const whatsappReminders = document.getElementById("btnWhatsappReminders");
-  if(whatsappReminders) whatsappReminders.onclick = async ()=>{
-    try{
-      const r = await api("/system/whatsapp-reminders", {method:"POST"});
-      await refreshData();
-      render();
-      toast((r.processed || 0) + " rappel(s) WhatsApp J-1 traité(s).");
-    }catch(e){ toast(e.message || "Rappels WhatsApp impossibles."); }
-  };
 };
 
 kpis = function(){
@@ -2205,6 +2166,7 @@ submitDeclaration = async function(){
     };
     const created = await api("/declarations", {method:"POST", body:JSON.stringify(payload)});
     if(f.photos.length) await uploadFormPhotos(created.id, f.photos);
+    const receiptNumber = created.reference || created.id;
     state.form = emptyForm();
     if(state.role === "declarant"){
       apiToken = "";
@@ -2218,11 +2180,12 @@ submitDeclaration = async function(){
       state.openId = null;
       state.openHistoryIndex = null;
       state.previewImage = null;
+      state.lastDeclarationReceipt = receiptNumber;
     }else{
       await refreshData();
     }
     render();
-    toast("Déclaration " + (created.reference || created.id) + " envoyée.");
+    toast("Déclaration reçue - Numéro : " + receiptNumber);
   }catch(e){ toast(e.message || "Envoi impossible."); }
 };
 
