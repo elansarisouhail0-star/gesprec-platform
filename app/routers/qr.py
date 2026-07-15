@@ -6,14 +6,9 @@ import qrcode.image.svg
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
-from app.config import get_settings
-
 router = APIRouter(prefix="/qr", tags=["qr"])
 
 def public_url(request: Request) -> str:
-    configured = get_settings().public_base_url
-    if configured:
-        return configured
     return str(request.base_url).rstrip("/")
 
 
@@ -63,7 +58,7 @@ def qr_declaration_svg(request: Request) -> Response:
     img = qrcode.make(declaration_url(request), image_factory=factory)
     out = BytesIO()
     img.save(out)
-    return Response(content=out.getvalue(), media_type="image/svg+xml")
+    return Response(content=out.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
 @router.get("/atelier.svg")
@@ -72,4 +67,4 @@ def qr_svg(request: Request, name: str) -> Response:
     img = qrcode.make(atelier_url(request, name), image_factory=factory)
     out = BytesIO()
     img.save(out)
-    return Response(content=out.getvalue(), media_type="image/svg+xml")
+    return Response(content=out.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
