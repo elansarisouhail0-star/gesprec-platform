@@ -13,6 +13,8 @@ from app.models import Declaration, Photo
 
 IMAGE_CX = 1_550_000
 IMAGE_CY = 1_050_000
+IMAGE_GAP_CX = 110_000
+IMAGE_ROW_OFF = 130_000
 DASHBOARD_CX = 8_400_000
 DASHBOARD_CY = 2_750_000
 
@@ -61,7 +63,7 @@ def _sheet_xml(rows: list[str], max_row: int, max_col: int, drawing: bool = Fals
     <col min="3" max="3" width="26" customWidth="1"/>
     <col min="4" max="8" width="21" customWidth="1"/>
     <col min="9" max="9" width="22" customWidth="1"/>
-    <col min="10" max="11" width="30" customWidth="1"/>
+    <col min="10" max="11" width="82" customWidth="1"/>
   </cols>
   <sheetData>{"".join(rows)}</sheetData>
   {drawing_xml}
@@ -166,6 +168,7 @@ def _content_types(image_extensions: list[str], drawing_count: int = 1) -> str:
         ("/xl/styles.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"),
         ("/xl/worksheets/sheet1.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"),
         ("/xl/worksheets/sheet2.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"),
+        ("/xl/worksheets/sheet3.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"),
     ]
     for idx in range(1, drawing_count + 1):
         override_parts.append((f"/xl/drawings/drawing{idx}.xml", "application/vnd.openxmlformats-officedocument.drawing+xml"))
@@ -181,12 +184,15 @@ def _drawing_xml(images: list[dict[str, object]]) -> str:
         col = int(item["col"]) - 1
         cx = int(item.get("cx", IMAGE_CX))
         cy = int(item.get("cy", IMAGE_CY))
+        col_off = int(item.get("col_off", 0))
+        row_off = int(item.get("row_off", 0))
+        descr = _xml(item.get("descr", "Image jointe"))
         anchors.append(f'''
   <xdr:oneCellAnchor>
-    <xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>
+    <xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>{col_off}</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>{row_off}</xdr:rowOff></xdr:from>
     <xdr:ext cx="{cx}" cy="{cy}"/>
     <xdr:pic>
-      <xdr:nvPicPr><xdr:cNvPr id="{idx}" name="Image {idx}"/><xdr:cNvPicPr/></xdr:nvPicPr>
+      <xdr:nvPicPr><xdr:cNvPr id="{idx}" name="Image {idx}" descr="{descr}"/><xdr:cNvPicPr/></xdr:nvPicPr>
       <xdr:blipFill><a:blip r:embed="rId{idx}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>
       <xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
     </xdr:pic>
@@ -285,49 +291,77 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
         "Images apres intervention",
     ]
     declaration_rows = [_row(1, headers, height=28, style=2)]
+    detail_rows = [_row(1, ["Numero precurseur", "Phase", "Image complete"], height=28, style=2)]
     dashboard_images: list[dict[str, object]] = [
         {"row": 1, "col": 4, "ext": "svg", "media": "dashboard.svg", "cx": DASHBOARD_CX, "cy": DASHBOARD_CY}
     ]
     declaration_images: list[dict[str, object]] = []
+    detail_images: list[dict[str, object]] = []
     media_payloads: list[tuple[str, bytes, str]] = [("dashboard.svg", _dashboard_snapshot_svg(declarations), "svg")]
     current_row = 2
+    detail_row = 2
     media_index = 1
     for declaration in declarations:
         declaration_photos = [p for p in declaration.photos if (p.phase or "declaration") != "intervention"]
         intervention_photos = [p for p in declaration.photos if (p.phase or "declaration") == "intervention"]
-        row_count = max(1, len(declaration_photos), len(intervention_photos))
-        for idx in range(row_count):
-            values = [
-                declaration.reference,
-                declaration.description,
-                declaration.atelier,
-                _value(declaration.category),
-                _value(declaration.real_gravity),
-                _status_label(declaration.status),
-                declaration.created_at.strftime("%d/%m/%Y %H:%M") if declaration.created_at else "",
-                declaration.sla_date or "",
-                declaration.closed_at.strftime("%d/%m/%Y %H:%M") if declaration.closed_at else "",
-                f"Image {idx + 1}" if idx < len(declaration_photos) else "",
-                f"Image {idx + 1}" if idx < len(intervention_photos) else "",
-            ]
-            has_photo = idx < len(declaration_photos) or idx < len(intervention_photos)
-            declaration_rows.append(_row(current_row, values, height=96 if has_photo else None, style=1))
-            for col, photos in ((10, declaration_photos), (11, intervention_photos)):
-                if idx >= len(photos):
-                    continue
-                photo_payload = _photo_bytes(photos[idx])
+        photo_count = max(len(declaration_photos), len(intervention_photos))
+        values = [
+            declaration.reference,
+            declaration.description,
+            declaration.atelier,
+            _value(declaration.category),
+            _value(declaration.real_gravity),
+            _status_label(declaration.status),
+            declaration.created_at.strftime("%d/%m/%Y %H:%M") if declaration.created_at else "",
+            declaration.sla_date or "",
+            declaration.closed_at.strftime("%d/%m/%Y %H:%M") if declaration.closed_at else "",
+            f"{len(declaration_photos)} image(s) - voir Images detaillees" if declaration_photos else "",
+            f"{len(intervention_photos)} image(s) - voir Images detaillees" if intervention_photos else "",
+        ]
+        declaration_rows.append(_row(current_row, values, height=108 if photo_count else None, style=1))
+        for col, photos, label in (
+            (10, declaration_photos, "Image declaration"),
+            (11, intervention_photos, "Image intervention"),
+        ):
+            for idx, photo in enumerate(photos):
+                photo_payload = _photo_bytes(photo)
                 if not photo_payload:
                     continue
                 payload, ext = photo_payload
                 media_index += 1
                 media_name = f"image{media_index}.{ext}"
                 media_payloads.append((media_name, payload, ext))
-                declaration_images.append({"row": current_row, "col": col, "ext": ext, "media": media_name})
-            current_row += 1
+                declaration_images.append(
+                    {
+                        "row": current_row,
+                        "col": col,
+                        "ext": ext,
+                        "media": media_name,
+                        "col_off": idx * (IMAGE_CX + IMAGE_GAP_CX),
+                        "row_off": IMAGE_ROW_OFF,
+                        "descr": f"{label} {idx + 1} - {declaration.reference}",
+                    }
+                )
+                phase_label = "Avant intervention" if col == 10 else "Apres intervention"
+                detail_rows.append(_row(detail_row, [declaration.reference, phase_label, f"Image {idx + 1}"], height=230, style=1))
+                detail_images.append(
+                    {
+                        "row": detail_row,
+                        "col": 3,
+                        "ext": ext,
+                        "media": media_name,
+                        "cx": 3_450_000,
+                        "cy": 2_250_000,
+                        "row_off": 120_000,
+                        "descr": f"{phase_label} {idx + 1} - {declaration.reference}",
+                    }
+                )
+                detail_row += 1
+        current_row += 1
 
     output = BytesIO()
     image_extensions = [ext for _, _, ext in media_payloads]
-    drawing_count = 1 + (1 if declaration_images else 0)
+    drawing_count = 3
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", _content_types(image_extensions, drawing_count))
         archive.writestr("_rels/.rels", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -345,13 +379,15 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
   <sheets>
     <sheet name="Tableau de bord" sheetId="1" r:id="rId1"/>
     <sheet name="Declarations" sheetId="2" r:id="rId2"/>
+    <sheet name="Images detaillees" sheetId="3" r:id="rId3"/>
   </sheets>
 </workbook>''')
         archive.writestr("xl/_rels/workbook.xml.rels", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>''')
         archive.writestr("xl/styles.xml", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -383,6 +419,7 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
 </styleSheet>''')
         archive.writestr("xl/worksheets/sheet1.xml", _sheet_xml(summary_rows, max(len(summary_rows), 1), 8, drawing=bool(dashboard_images)))
         archive.writestr("xl/worksheets/sheet2.xml", _sheet_xml(declaration_rows, max(current_row - 1, 1), 11, drawing=bool(declaration_images)))
+        archive.writestr("xl/worksheets/sheet3.xml", _sheet_xml(detail_rows, max(detail_row - 1, 1), 8, drawing=bool(detail_images)))
         if dashboard_images:
             archive.writestr("xl/worksheets/_rels/sheet1.xml.rels", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>''')
@@ -393,6 +430,17 @@ def build_declarations_xlsx(declarations: list[Declaration]) -> bytes:
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing2.xml"/></Relationships>''')
             archive.writestr("xl/drawings/drawing2.xml", _drawing_xml(declaration_images))
             archive.writestr("xl/drawings/_rels/drawing2.xml.rels", _drawing_rels(declaration_images))
+        else:
+            archive.writestr("xl/drawings/drawing2.xml", _drawing_xml([]))
+            archive.writestr("xl/drawings/_rels/drawing2.xml.rels", _drawing_rels([]))
+        if detail_images:
+            archive.writestr("xl/worksheets/_rels/sheet3.xml.rels", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing3.xml"/></Relationships>''')
+            archive.writestr("xl/drawings/drawing3.xml", _drawing_xml(detail_images))
+            archive.writestr("xl/drawings/_rels/drawing3.xml.rels", _drawing_rels(detail_images))
+        else:
+            archive.writestr("xl/drawings/drawing3.xml", _drawing_xml([]))
+            archive.writestr("xl/drawings/_rels/drawing3.xml.rels", _drawing_rels([]))
         for media_name, payload, _ext in media_payloads:
             archive.writestr(f"xl/media/{media_name}", payload)
     return output.getvalue()

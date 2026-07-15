@@ -203,14 +203,14 @@
   .btn.voir-read{ background:transparent; border:1.5px solid var(--green); color:var(--green); }
   .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
   .toast{
-    position:fixed; bottom:22px; right:22px; background:var(--panel); border:1px solid var(--orange); color:var(--text);
+    position:fixed; bottom:22px; left:22px; background:var(--panel); border:1px solid var(--orange); color:var(--text);
     padding:12px 18px; border-radius:9px; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,.4); z-index:100; max-width:320px;
   }
   ::placeholder{ color:#6b7480; }
 
   /* ---------- AUTH / LOGIN GATE ---------- */
   .login-wrap{
-    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:24vh 24px 18vh;
+    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; padding:27vh 24px 20vh;
     background:
       linear-gradient(90deg, rgba(7,13,19,.06), rgba(7,13,19,.12)),
       url("/assets/profile-background-20260715.png") center center / 100% 100% no-repeat;
@@ -220,13 +220,13 @@
     border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.38);
     backdrop-filter:blur(7px);
   }
-  .login-card.profile-choice-card{ max-width:460px; margin:0 auto; padding:16px; background:rgba(20,24,29,.66); }
+  .login-card.profile-choice-card{ max-width:760px; margin:0 auto; padding:16px; background:rgba(20,24,29,.66); }
   .receipt-banner{
     border:1px solid rgba(46,155,107,.55); background:rgba(46,155,107,.16); color:#eafff4;
     border-radius:10px; padding:11px 13px; margin-bottom:14px; text-align:center; font-weight:700;
   }
   .login-sub{ text-align:center; color:#fff; font-size:13.5px; margin-bottom:12px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.55); }
-  .role-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:7px; margin-bottom:10px; }
+  .role-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-bottom:10px; }
   .role-card{
     border:1px solid rgba(255,255,255,.24); background:rgba(20,32,43,.82); border-radius:9px; padding:8px 9px; cursor:pointer;
     text-align:center; transition:border-color .15s, background .15s;
@@ -807,6 +807,16 @@ function toast(msg){
   el.textContent = msg; el.style.display="block";
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>{ el.style.display="none"; }, 3200);
+}
+
+function bindButtonFeedback(){
+  document.querySelectorAll("button").forEach(btn=>{
+    if(btn.dataset.feedbackBound) return;
+    btn.dataset.feedbackBound = "1";
+    btn.addEventListener("click", ()=>{
+      if(!btn.disabled) toast("Action prise en compte.");
+    }, {capture:true});
+  });
 }
 
 /* ============================= RENDER HELPERS ============================= */
@@ -1867,6 +1877,7 @@ bindLoginEvents = function(){
       render();
     }
   };
+  bindButtonFeedback();
 };
 
 sidebarHTML = function(){
@@ -2076,6 +2087,7 @@ bindEvents = function(){
       toast("Mot de passe changé.");
     }catch(e){ toast(e.message || "Changement impossible."); }
   };
+  bindButtonFeedback();
 };
 
 kpis = function(){
