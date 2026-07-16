@@ -450,6 +450,22 @@ function emptyForm(){
     description:"", gravite:"moyen", photos:[], localisation:"", atelier: ATELIERS[0] };
 }
 
+function setQrDeclarationMode(enabled){
+  state.fromQrScan = !!enabled;
+  try{
+    if(enabled) sessionStorage.setItem("gesprec_qr_declaration", "1");
+    else sessionStorage.removeItem("gesprec_qr_declaration");
+  }catch(e){}
+}
+
+function qrDeclarationMode(){
+  try{
+    return state.fromQrScan || new URLSearchParams(window.location.search).get("declaration") === "1" || sessionStorage.getItem("gesprec_qr_declaration") === "1";
+  }catch(e){
+    return state.fromQrScan;
+  }
+}
+
 // Rôles ayant les mêmes prérogatives que le Responsable QSSE dans le workflow
 function isHSERole(r){ return r==="hse" || r==="chef_centre" || r==="coordination"; }
 
@@ -851,7 +867,7 @@ function renderApp(){
   if(state.role === "declarant"){
     app.innerHTML = `
       <div class="main solo">
-        ${state.fromQrScan ? "" : soloTopHTML()}
+        ${qrDeclarationMode() ? "" : soloTopHTML()}
         ${topbarHTML()}
         ${formHTML()}
       </div>
@@ -950,7 +966,7 @@ function bindLoginEvents(){
   });
   const btnEnterDeclarant = document.getElementById("btnEnterDeclarant");
   if(btnEnterDeclarant) btnEnterDeclarant.onclick = ()=>{
-    state.fromQrScan = false;
+    setQrDeclarationMode(false);
     state.role = "declarant";
     state.auth.loggedIn = true;
     state.tab = "nouvelle";
@@ -1117,9 +1133,10 @@ function drawCharts(){
 /* ---------- FORM (declaration) ---------- */
 function formHTML(){
   const f = state.form;
+  const isQrDeclaration = qrDeclarationMode();
   return `
-  <div class="panel form-panel">
-    ${state.fromQrScan && state.lastDeclarationReceipt ? `<div class="receipt-banner">Déclaration reçue avec succès<br>Numéro : ${state.lastDeclarationReceipt}</div>` : ""}
+  <div class="panel form-panel" data-qr-mode="${isQrDeclaration ? '1' : '0'}">
+    ${isQrDeclaration && state.lastDeclarationReceipt ? `<div class="receipt-banner">Déclaration reçue avec succès<br>Numéro : ${state.lastDeclarationReceipt}</div>` : ""}
     <div class="field">
       <label>Atelier concerné</label>
       ${state.qrAtelierLocked
@@ -1399,7 +1416,7 @@ function bindEvents(){
     state.openHistoryIndex = null;
     state.previewImage = null;
     state.currentUser = null;
-    state.fromQrScan = false;
+    setQrDeclarationMode(false);
     render();
   };
   const atelierSel = document.getElementById("atelierSelect");
@@ -1596,16 +1613,22 @@ function mediaUrl(path){
 const urlAtelier = new URLSearchParams(window.location.search).get("atelier");
 const declarationScan = new URLSearchParams(window.location.search).get("declaration");
 if(urlAtelier && ATELIERS.includes(urlAtelier)){
+  apiToken = "";
+  localStorage.removeItem("gesprec_token");
+  localStorage.removeItem("gesprec_user");
+  setQrDeclarationMode(true);
   state.atelierScanne = urlAtelier;
   state.qrAtelierLocked = true;
   state.form.atelier = urlAtelier;
+  state.role = "declarant";
+  state.auth.loggedIn = true;
   state.tab = "nouvelle";
 }else if(declarationScan){
   apiToken = "";
   localStorage.removeItem("gesprec_token");
   localStorage.removeItem("gesprec_user");
   state.qrAtelierLocked = false;
-  state.fromQrScan = true;
+  setQrDeclarationMode(true);
   state.role = "declarant";
   state.auth.loggedIn = true;
   state.tab = "nouvelle";
@@ -1866,6 +1889,7 @@ bindLoginEvents = function(){
     apiToken = "";
     localStorage.removeItem("gesprec_token");
     localStorage.removeItem("gesprec_user");
+    setQrDeclarationMode(false);
     state.role = "declarant";
     state.auth.loggedIn = true;
     state.tab = "nouvelle";
@@ -2037,7 +2061,7 @@ bindEvents = function(){
     state.openHistoryIndex = null;
     state.previewImage = null;
     state.currentUser = null;
-    state.fromQrScan = false;
+    setQrDeclarationMode(false);
     render();
   };
   document.querySelectorAll("[data-user-atelier]").forEach(option=>{
@@ -2182,6 +2206,7 @@ async function uploadPhotoFiles(apiId, files){
 submitDeclaration = async function(){
   const f = state.form;
   if(!f.description.trim()){ toast("Merci de decrire la situation observee."); return; }
+  const submittedFromQr = qrDeclarationMode() || (document.querySelector(".form-panel") || {}).dataset?.qrMode === "1";
   try{
     const payload = {
       atelier: f.atelier || ATELIERS[0],
@@ -2199,7 +2224,8 @@ submitDeclaration = async function(){
     if(f.photos.length) await uploadFormPhotos(created.id, f.photos);
     const receiptNumber = created.reference || created.id;
     state.form = emptyForm();
-    if(state.role === "declarant" && state.fromQrScan){
+    if(submittedFromQr){
+      setQrDeclarationMode(true);
       state.lastDeclarationReceipt = receiptNumber;
       state.auth.loggedIn = true;
       state.role = "declarant";
