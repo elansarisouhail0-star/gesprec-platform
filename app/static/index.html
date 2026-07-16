@@ -1199,13 +1199,31 @@ function kanbanHTML(){
 }
 
 /* ---------- NOTIFICATIONS ---------- */
+function lastNumericToken(value){
+  const match = String(value || "").match(/(\d+)(?!.*\d)/);
+  if(!match) return "";
+  return String(Number(match[1]));
+}
+
+function notificationMatchesSearch(notification, query){
+  const ref = String(notification.reference || "").toLowerCase();
+  const message = String(notification.message || "").toLowerCase();
+  if(!query) return true;
+  if(ref.includes(query) || message.includes(query)) return true;
+  if(/^\d+$/.test(query)){
+    const normalizedQuery = String(Number(query));
+    return lastNumericToken(ref) === normalizedQuery || lastNumericToken(message) === normalizedQuery;
+  }
+  return false;
+}
+
 function notificationsHTML(){
   const base = state.notifications.filter(n=>notifVisibleTo(n, state.role));
   const ref = (state.notificationFilters.reference || "").trim().toLowerCase();
   const date = state.notificationFilters.date || "";
   const list = base.filter(n=>{
     const atelierOk = !state.atelierScanne || n.atelier === state.atelierScanne;
-    const refOk = !ref || String(n.reference || "").toLowerCase().includes(ref) || String(n.message || "").toLowerCase().includes(ref);
+    const refOk = notificationMatchesSearch(n, ref);
     const dateOk = !date || n.declarationCreatedDate === date;
     return atelierOk && refOk && dateOk;
   });
@@ -1215,7 +1233,7 @@ function notificationsHTML(){
       <div style="font-size:12.5px;color:var(--text-dim);">${unread} non lue(s) sur ${list.length} affichée(s) / ${base.length}</div>
     </div>
     <div class="notif-filters">
-      <input type="text" id="notifRefFilter" placeholder="Rechercher par numéro précurseur, ex. PRC-2026-0006" value="${state.notificationFilters.reference || ""}">
+      <input type="text" id="notifRefFilter" placeholder="Rechercher par numéro précurseur, ex. PRC-2026-0006 ou 6" value="${state.notificationFilters.reference || ""}">
       <input type="date" id="notifDateFilter" value="${state.notificationFilters.date || ""}">
     </div>
     ${list.length===0 ? `<div class="empty">Aucune notification pour ces filtres.</div>` : ""}
