@@ -1119,6 +1119,7 @@ function formHTML(){
   const f = state.form;
   return `
   <div class="panel form-panel">
+    ${state.fromQrScan && state.lastDeclarationReceipt ? `<div class="receipt-banner">Déclaration reçue avec succès<br>Numéro : ${state.lastDeclarationReceipt}</div>` : ""}
     <div class="field">
       <label>Atelier concerné</label>
       ${state.qrAtelierLocked
@@ -2180,7 +2181,15 @@ submitDeclaration = async function(){
     if(f.photos.length) await uploadFormPhotos(created.id, f.photos);
     const receiptNumber = created.reference || created.id;
     state.form = emptyForm();
-    if(state.role === "declarant"){
+    if(state.role === "declarant" && state.fromQrScan){
+      state.lastDeclarationReceipt = receiptNumber;
+      state.auth.loggedIn = true;
+      state.role = "declarant";
+      state.tab = "nouvelle";
+      state.openId = null;
+      state.openHistoryIndex = null;
+      state.previewImage = null;
+    }else if(state.role === "declarant"){
       apiToken = "";
       localStorage.removeItem("gesprec_token");
       localStorage.removeItem("gesprec_user");
