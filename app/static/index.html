@@ -197,8 +197,9 @@
   .empty{ color:var(--text-dim); font-size:13px; padding:20px; text-align:center; }
   .notif-row{ padding:12px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:14px; align-items:center; }
   .notif-row.is-read{ opacity:0.55; }
-  .notif-filters{ display:grid; grid-template-columns:1fr 190px; gap:10px; margin:0 0 14px; }
+  .notif-filters{ display:grid; grid-template-columns:minmax(0,1fr) 190px auto; gap:10px; margin:0 0 14px; }
   .notif-filters input{ width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:9px 11px; font-family:var(--body); font-size:13px; }
+  .notif-search-btn{ min-width:118px; justify-content:center; }
   .btn.voir-unread{ background:var(--orange); color:#14181D; border:none; }
   .btn.voir-read{ background:transparent; border:1.5px solid var(--green); color:var(--green); }
   .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
@@ -435,6 +436,7 @@ let state = {
   declarations: [],
   notifications: [],
   notificationFilters: { reference:"", date:"" },
+  notificationSearchDraft: null,
   openId: null,
   openHistoryIndex: null,
   previewImage: null,
@@ -1237,6 +1239,7 @@ function notificationMatchesSearch(notification, query){
 function notificationsHTML(){
   const base = state.notifications.filter(n=>notifVisibleTo(n, state.role));
   const ref = (state.notificationFilters.reference || "").trim().toLowerCase();
+  const refDraft = state.notificationSearchDraft !== null ? state.notificationSearchDraft : (state.notificationFilters.reference || "");
   const date = state.notificationFilters.date || "";
   const list = base.filter(n=>{
     const atelierOk = !state.atelierScanne || n.atelier === state.atelierScanne;
@@ -1250,8 +1253,9 @@ function notificationsHTML(){
       <div style="font-size:12.5px;color:var(--text-dim);">${unread} non lue(s) sur ${list.length} affichée(s) / ${base.length}</div>
     </div>
     <div class="notif-filters">
-      <input type="text" id="notifRefFilter" placeholder="Rechercher par numéro précurseur, ex. PRC-2026-0006 ou 6" value="${state.notificationFilters.reference || ""}">
+      <input type="text" id="notifRefFilter" placeholder="Rechercher par numéro précurseur, ex. PRC-2026-0006 ou 6" value="${refDraft || ""}">
       <input type="date" id="notifDateFilter" value="${state.notificationFilters.date || ""}">
+      <button class="btn notif-search-btn" id="notifSearchBtn" type="button">Rechercher</button>
     </div>
     ${list.length===0 ? `<div class="empty">Aucune notification pour ces filtres.</div>` : ""}
     ${list.map(n=>`
@@ -1422,13 +1426,28 @@ function bindEvents(){
   const atelierSel = document.getElementById("atelierSelect");
   if(atelierSel) atelierSel.onchange = e=>{ state.atelierScanne = e.target.value; render(); };
   const notifRefFilter = document.getElementById("notifRefFilter");
-  if(notifRefFilter) notifRefFilter.oninput = e=>{
-    state.notificationFilters.reference = e.target.value;
-    clearTimeout(window.__gesprecNotifFilterTimer);
-    window.__gesprecNotifFilterTimer = setTimeout(render, 260);
+  const applyNotificationSearch = ()=>{
+    state.notificationSearchDraft = notifRefFilter ? notifRefFilter.value : (state.notificationSearchDraft || "");
+    state.notificationFilters.reference = state.notificationSearchDraft || "";
+    render();
   };
+  if(notifRefFilter) notifRefFilter.oninput = e=>{
+    state.notificationSearchDraft = e.target.value;
+  };
+  if(notifRefFilter) notifRefFilter.onkeydown = e=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      applyNotificationSearch();
+    }
+  };
+  const notifSearchBtn = document.getElementById("notifSearchBtn");
+  if(notifSearchBtn) notifSearchBtn.onclick = applyNotificationSearch;
   const notifDateFilter = document.getElementById("notifDateFilter");
-  if(notifDateFilter) notifDateFilter.onchange = e=>{ state.notificationFilters.date = e.target.value; render(); };
+  if(notifDateFilter) notifDateFilter.onchange = e=>{
+    state.notificationSearchDraft = notifRefFilter ? notifRefFilter.value : state.notificationSearchDraft;
+    state.notificationFilters.date = e.target.value;
+    render();
+  };
 
   // form
   const bind = (id, key, checkbox)=>{
