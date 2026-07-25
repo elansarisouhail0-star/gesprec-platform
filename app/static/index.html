@@ -1979,7 +1979,7 @@ loginGateHTML = function(){
       ${state.lastDeclarationReceipt ? `<div class="receipt-banner">Déclaration reçue avec succès<br>Numéro : ${state.lastDeclarationReceipt}</div>` : ""}
       <div class="role-grid">
         ${roles.map(r=>`
-          <div class="role-card ${selectedRole===r.k?'sel':''}" data-role="${r.k}">
+          <div class="role-card ${selectedRole===r.k?'sel':''} ${r.k==="collaborateur"?"full-width":""}" data-role="${r.k}">
             <div class="ric">${r.icon}</div>
             <div class="rname">${r.name}</div>
             <div class="rdesc">${r.desc}</div>
