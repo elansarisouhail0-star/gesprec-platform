@@ -2018,7 +2018,7 @@ bindLoginEvents = function(){
   if(btnLogin) btnLogin.onclick = async ()=>{
     const u = (document.getElementById("loginUser").value||"").trim();
     const p = (document.getElementById("loginPass").value||"").trim();
-    if(!u || !p){ state.loginForm.error = "Veuillez renseigner votre email et votre mot de passe."; render(); return; }
+    if(!u || !p){ state.loginForm.error = "Veuillez renseigner votre identifiant et votre mot de passe."; render(); return; }
     try{
       const body = new URLSearchParams({username:u, password:p});
       const data = await api("/auth/login", {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body});
