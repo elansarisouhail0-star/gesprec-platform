@@ -7,7 +7,7 @@ from app.security import hash_password
 
 
 DEFAULT_USERS = [
-    ("hse@gesprec.local", "Responsable QSSE", Role.hse, "Hse12345!", "", ""),
+    ("qsse@gesprec.local", "Responsable QSSE", Role.hse, "Qsse2026!", "", ""),
     ("chef@gesprec.local", "Chef de technicentre TMLC", Role.chef_technicentre_tmlc, "Chef12345!", "", ""),
     ("etablissement@gesprec.local", "Chef d'établissement", Role.chef_etablissement, "Etab12345!", "", ""),
     ("coordination@gesprec.local", "Responsable Coordination", Role.coordination, "Coord12345!", "", ""),
@@ -19,6 +19,13 @@ DEFAULT_USERS = [
 
 
 def seed_default_users(db: Session) -> None:
+    old_hse = db.scalar(select(User).where(User.email == "hse@gesprec.local"))
+    qsse_user = db.scalar(select(User).where(User.email == "qsse@gesprec.local"))
+    if old_hse and not qsse_user:
+        old_hse.email = "qsse@gesprec.local"
+    elif old_hse and qsse_user and old_hse.id != qsse_user.id:
+        old_hse.is_active = False
+
     for old_user in db.scalars(select(User).where(User.role == "chef_centre")):
         old_user.role = Role.chef_technicentre_tmlc
         if old_user.full_name == "Chef de centre":
@@ -37,6 +44,8 @@ def seed_default_users(db: Session) -> None:
                 exists.responsible_ateliers = responsible_ateliers
             if phone_numbers and not exists.phone_numbers:
                 exists.phone_numbers = phone_numbers
+            if email == "qsse@gesprec.local":
+                exists.hashed_password = hash_password(password)
             continue
         db.add(
             User(

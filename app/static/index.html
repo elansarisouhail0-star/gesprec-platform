@@ -234,6 +234,7 @@
   }
   .role-card:hover{ border-color:var(--orange); background:rgba(255,106,43,.22); }
   .role-card.sel{ border-color:var(--orange); background:rgba(255,106,43,0.3); }
+  .role-card.full-width{ grid-column:1 / -1; }
   .role-card .ric{ font-size:17px; margin-bottom:4px; }
   .role-card .rname{ font-weight:700; font-size:12.5px; color:#fff; }
   .role-card .rdesc{ font-size:9.5px; color:#d8e0e8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
@@ -945,7 +946,7 @@ function loginGateHTML(){
       <div class="login-sub">Sélectionnez votre profil pour continuer</div>
       <div class="role-grid">
         ${roles.map(r=>`
-          <div class="role-card ${selectedRole===r.k?'sel':''}" data-role="${r.k}">
+          <div class="role-card ${selectedRole===r.k?'sel':''} ${r.k==="collaborateur"?"full-width":""}" data-role="${r.k}">
             <div class="ric">${r.icon}</div>
             <div class="rname">${r.name}</div>
             <div class="rdesc">${r.desc}</div>
@@ -1988,7 +1989,7 @@ loginGateHTML = function(){
         <button class="btn" id="btnEnterDeclarant" style="width:100%;">Accéder au formulaire de déclaration</button>
       ` : selectedRole ? `
         <div class="login-fields">
-          <div class="field"><label>Email</label><input type="text" id="loginUser" placeholder="ex. hse@gesprec.local"></div>
+          <div class="field"><label>Identifiant</label><input type="text" id="loginUser" placeholder="ex. qsse@gesprec.local"></div>
           <div class="field"><label>Mot de passe</label><input type="password" id="loginPass" placeholder="Mot de passe"></div>
           ${state.loginForm.error ? `<div class="login-error">${state.loginForm.error}</div>` : ""}
           <button class="btn" id="btnLogin" style="width:100%;">Se connecter</button>
@@ -2113,7 +2114,7 @@ function usersHTML(){
     <div class="section-title">Créer / modifier un utilisateur</div>
     <input type="hidden" id="u_id">
     <div class="row2">
-      <div class="field"><label>Email / identifiant</label><input type="text" id="u_email" placeholder="ex. traitement1@gesprec.local"></div>
+      <div class="field"><label>Identifiant</label><input type="text" id="u_email" placeholder="ex. traitement1@gesprec.local"></div>
       <div class="field"><label>Nom complet</label><input type="text" id="u_name" placeholder="Nom du responsable"></div>
     </div>
     <div class="row3">
@@ -2184,7 +2185,7 @@ function myCollaboratorsHTML(){
     <input type="hidden" id="u_id">
     <input type="hidden" id="u_role" value="collaborateur">
     <div class="row2">
-      <div class="field"><label>Email / identifiant</label><input type="text" id="u_email" placeholder="ex. collaborateur1@gesprec.local"></div>
+      <div class="field"><label>Identifiant</label><input type="text" id="u_email" placeholder="ex. collaborateur1@gesprec.local"></div>
       <div class="field"><label>Nom complet</label><input type="text" id="u_name" placeholder="Nom du collaborateur"></div>
     </div>
     <div class="row2">
