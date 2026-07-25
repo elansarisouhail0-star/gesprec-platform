@@ -40,6 +40,7 @@ def apply_lightweight_migrations() -> None:
         "intervention_days": "INTEGER",
         "intervention_date": "VARCHAR(80)",
         "assigned_phone_numbers": "VARCHAR(500)",
+        "assigned_responsible_ids": "TEXT",
     }
     with engine.begin() as conn:
         for name, sql_type in declaration_additions.items():
@@ -50,6 +51,7 @@ def apply_lightweight_migrations() -> None:
             user_additions = {
                 "responsible_ateliers": "TEXT",
                 "phone_numbers": "VARCHAR(500)",
+                "manager_id": "INTEGER",
             }
             for name, sql_type in user_additions.items():
                 if name not in user_columns:
@@ -60,6 +62,15 @@ def apply_lightweight_migrations() -> None:
                 conn.execute(text("ALTER TABLE photos ADD COLUMN phase VARCHAR(40) DEFAULT 'declaration'"))
             if "data_url" not in photo_columns:
                 conn.execute(text("ALTER TABLE photos ADD COLUMN data_url TEXT"))
+        if "declaration_collaborators" in inspector.get_table_names():
+            collaborator_columns = {column["name"] for column in inspector.get_columns("declaration_collaborators")}
+            collaborator_additions = {
+                "intervention_date": "VARCHAR(80)",
+                "intervention_days": "INTEGER",
+            }
+            for name, sql_type in collaborator_additions.items():
+                if name not in collaborator_columns:
+                    conn.execute(text(f"ALTER TABLE declaration_collaborators ADD COLUMN {name} {sql_type}"))
 
 
 @app.on_event("startup")

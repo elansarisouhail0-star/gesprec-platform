@@ -217,6 +217,7 @@ def _status_label(value: object) -> str:
     labels = {
         "nouvelle": "Nouvelle",
         "analyse": "En analyse",
+        "replanification": "Replanification",
         "affecte": "Affecté",
         "planifie": "Planifié",
         "realisee": "Réalisée",

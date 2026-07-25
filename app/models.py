@@ -17,6 +17,7 @@ class Role(str, Enum):
     chef_etablissement = "chef_etablissement"
     coordination = "coordination"
     traitement = "traitement"
+    collaborateur = "collaborateur"
 
 
 class Category(str, Enum):
@@ -37,6 +38,7 @@ class Gravity(str, Enum):
 class Status(str, Enum):
     nouvelle = "nouvelle"
     analyse = "analyse"
+    replanification = "replanification"
     affecte = "affecte"
     planifie = "planifie"
     realisee = "realisee"
@@ -59,6 +61,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     responsible_ateliers: Mapped[str | None] = mapped_column(Text, nullable=True)
     phone_numbers: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -90,6 +93,7 @@ class Declaration(Base):
 
     assigned_service: Mapped[str | None] = mapped_column(String(180), nullable=True)
     assigned_responsible: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    assigned_responsible_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     priority: Mapped[str | None] = mapped_column(String(80), nullable=True)
     sla_date: Mapped[str | None] = mapped_column(String(80), nullable=True)
     resources: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -124,6 +128,32 @@ class Declaration(Base):
     photos: Mapped[list["Photo"]] = relationship(cascade="all, delete-orphan", back_populates="declaration")
     history: Mapped[list["HistoryEvent"]] = relationship(cascade="all, delete-orphan", back_populates="declaration")
     notifications: Mapped[list["Notification"]] = relationship(cascade="all, delete-orphan", back_populates="declaration")
+    collaborators: Mapped[list["DeclarationCollaborator"]] = relationship(cascade="all, delete-orphan", back_populates="declaration")
+
+
+class DeclarationCollaborator(Base):
+    __tablename__ = "declaration_collaborators"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    declaration_id: Mapped[int] = mapped_column(ForeignKey("declarations.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    intervention_date: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    intervention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    difficulties: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    declaration: Mapped[Declaration] = relationship(back_populates="collaborators")
+    user: Mapped[User] = relationship()
+
+    @property
+    def full_name(self) -> str:
+        return self.user.full_name if self.user else ""
+
+    @property
+    def email(self) -> str:
+        return self.user.email if self.user else ""
 
 
 class Photo(Base):

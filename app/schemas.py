@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     is_active: bool
     responsible_ateliers: str | None = None
     phone_numbers: str | None = None
+    manager_id: int | None = None
 
 
 class UserCreate(BaseModel):
@@ -31,6 +32,7 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     responsible_ateliers: str | None = Field(default=None, max_length=2000)
     phone_numbers: str | None = Field(default=None, max_length=500)
+    manager_id: int | None = None
 
 
 class UserUpdate(BaseModel):
@@ -41,6 +43,7 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     responsible_ateliers: str | None = Field(default=None, max_length=2000)
     phone_numbers: str | None = Field(default=None, max_length=500)
+    manager_id: int | None = None
 
 
 class PasswordChange(BaseModel):
@@ -71,6 +74,20 @@ class HistoryOut(BaseModel):
     action: str
     actor_id: int | None = None
     created_at: datetime
+
+
+class CollaboratorAssignmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    full_name: str
+    email: str
+    task_description: str | None = None
+    intervention_date: str | None = None
+    intervention_days: int | None = None
+    difficulties: str | None = None
+    completed_at: datetime | None = None
 
 
 class DeclarationCreate(BaseModel):
@@ -108,6 +125,7 @@ class PlanningIn(BaseModel):
     date: str
     time: str
     technicians: str | None = None
+    collaborator_ids: list[int] = Field(default_factory=list)
     material: str | None = None
 
 
@@ -122,6 +140,13 @@ class InterventionIn(BaseModel):
 class VerificationIn(BaseModel):
     conform: bool
     comment: str | None = None
+
+
+class CollaboratorTaskIn(BaseModel):
+    task_description: str = Field(min_length=3)
+    intervention_date: str | None = Field(default=None, max_length=80)
+    days: int = Field(default=0, ge=0)
+    difficulties: str | None = None
 
 
 class DeclarationOut(BaseModel):
@@ -149,6 +174,7 @@ class DeclarationOut(BaseModel):
 
     assigned_service: str | None = None
     assigned_responsible: str | None = None
+    assigned_responsible_ids: str | None = None
     priority: str | None = None
     sla_date: str | None = None
     resources: str | None = None
@@ -177,6 +203,7 @@ class DeclarationOut(BaseModel):
     updated_at: datetime
     photos: list[PhotoOut] = []
     history: list[HistoryOut] = []
+    collaborators: list[CollaboratorAssignmentOut] = []
 
 
 class NotificationOut(BaseModel):

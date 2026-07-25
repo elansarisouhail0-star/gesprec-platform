@@ -334,9 +334,9 @@ const GRAVITES = [
   {key:"important", label:"Important", color:"var(--orange)"},
   {key:"critique", label:"Critique", color:"var(--red)"}
 ];
-const STATUS_ORDER = ["nouvelle","analyse","affecte","planifie","realisee","cloture"];
+const STATUS_ORDER = ["nouvelle","analyse","replanification","affecte","planifie","realisee","cloture"];
 const STATUS_LABEL = {
-  nouvelle:"Nouvelle", analyse:"En analyse", affecte:"Affecté", planifie:"Planifié",
+  nouvelle:"Nouvelle", analyse:"En analyse", replanification:"Replanification", affecte:"Affecté", planifie:"Planifié",
   realisee:"Intervention réalisée", cloture:"Clôturé"
 };
 
@@ -370,6 +370,14 @@ function treatmentUsersForAtelier(atelier){
   return (state.users || []).filter(u=>{
     if(u.role !== "traitement") return false;
     return splitMulti(u.responsible_ateliers).includes(atelier);
+  });
+}
+
+function collaboratorUsersForAtelier(atelier){
+  return (state.users || []).filter(u=>{
+    if(u.role !== "collaborateur") return false;
+    const ateliers = splitMulti(u.responsible_ateliers);
+    return !ateliers.length || ateliers.includes(atelier);
   });
 }
 
@@ -450,6 +458,11 @@ let state = {
 function emptyForm(){
   return { anonyme:false, nom:"", matricule:"", fonction:"", service:"", categorie:CATEGORIES[0],
     description:"", gravite:"moyen", photos:[], localisation:"", atelier: ATELIERS[0] };
+}
+
+function selectedCollaboratorUsers(){
+  const ids = Array.from(document.querySelectorAll("[data-collaborator].selected")).map(option=>Number(option.dataset.collaborator));
+  return (state.users || []).filter(u=>ids.includes(Number(u.id)));
 }
 
 function setQrDeclarationMode(enabled){
@@ -1325,12 +1338,14 @@ function actionBlockHTML(dec){
     <div class="field"><label>Commentaire</label><textarea id="a_comment" placeholder="Observations complémentaires"></textarea></div>
     <button class="btn" id="btnAnalyse" data-id="${dec.id}">Valider l'analyse</button>`;
   }
-  if(isHSERole(role) && dec.status==="analyse"){
+  if(isHSERole(role) && (dec.status==="analyse" || dec.status==="replanification")){
     const treatmentUsers = treatmentUsersForAtelier(dec.atelier);
+    const isReplanification = dec.status==="replanification";
     return `
-    <div class="section-title">Affectation du traitement (${roleLabel(role)})</div>
+    <div class="section-title">${isReplanification ? "Replanification du deadline" : "Affectation du traitement"} (${roleLabel(role)})</div>
+    ${isReplanification ? `<div class="hist-detail" style="display:block;margin-bottom:12px;">Traitement non conforme : saisissez une nouvelle date limite, puis affectez de nouveau le traitement.</div>` : ""}
     <div class="row2">
-      <div class="field"><label>Service chargé</label><input type="text" id="af_service" placeholder="Ex. Maintenance"></div>
+      <div class="field"><label>Service chargé</label><input type="text" id="af_service" placeholder="Ex. Maintenance" value="${(dec.affectation && dec.affectation.service) || ""}"></div>
       <div class="field"><label>Priorité</label>
         <select id="af_prio"><option>Basse</option><option selected>Normale</option><option>Haute</option><option>Urgente</option></select></div>
     </div>
@@ -1348,27 +1363,46 @@ function actionBlockHTML(dec){
       </div>
       ${treatmentUsers.length ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Aucun responsable de traitement n'est rattaché à l'atelier ${dec.atelier}.</div>`}
     </div>
-    <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 collaborateurs, pièce détachée X"></div>
-    <button class="btn" id="btnAffecter" data-id="${dec.id}">Affecter et notifier par WhatsApp</button>`;
+    <div class="field"><label>Ressources nécessaires</label><input type="text" id="af_ress" placeholder="Ex. 2 collaborateurs, pièce détachée X" value="${(dec.affectation && dec.affectation.ressources) || ""}"></div>
+    <button class="btn" id="btnAffecter" data-id="${dec.id}">${isReplanification ? "Valider la replanification et notifier" : "Affecter et notifier par WhatsApp"}</button>`;
   }
   // Traitement: planification
   if(role==="traitement" && dec.status==="affecte"){
     const deadlineDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    const collaborators = collaboratorUsersForAtelier(dec.atelier);
     return `
     <div class="section-title">Planification de l'intervention</div>
     <div class="row2">
       <div class="field"><label>Date</label><input type="date" id="p_date" ${deadlineDate?`max="${deadlineDate}"`:''}></div>
       <div class="field"><label>Heure</label><input type="time" id="p_heure"></div>
     </div>
-    <div class="field"><label>Collaborateurs affectés</label><input type="text" id="p_tech" placeholder="Noms des collaborateurs"></div>
+    <div class="field">
+      <label>Collaborateurs affectés</label>
+      <div id="p_collaborators" class="check-list">
+        ${collaborators.map(u=>`<div class="check-option" data-collaborator="${u.id}">
+          <span class="check-icon">&#10003;</span>
+          <span><span class="check-main">${u.full_name}</span><span class="check-sub">${u.email} - ${u.phone_numbers || "Téléphone non renseigné"}</span></span>
+        </div>`).join("")}
+      </div>
+      ${collaborators.length ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Aucun collaborateur disponible pour ${dec.atelier}. Vous pouvez en créer dans Utilisateurs.</div>`}
+      <input type="hidden" id="p_tech">
+    </div>
     <div class="field"><label>Matériel nécessaire</label><input type="text" id="p_mat" placeholder="Ex. Clé dynamométrique, EPI"></div>
     <button class="btn" id="btnPlanifier" data-id="${dec.id}">Planifier</button>`;
   }
   if(role==="traitement" && dec.status==="planifie"){
     const minDate = calendarDateValue(dec.planification && dec.planification.date);
     const maxDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    const collabSummary = (dec.collaborateurs || []).length ? `
+      <div class="field">
+        <label>Tâches saisies par les collaborateurs</label>
+        <div class="selected-phone-list">
+          ${(dec.collaborateurs || []).map(c=>`<div class="selected-phone-pill"><b>${c.nom}</b> - ${c.taches || "En attente de saisie"}${c.completedAt ? ` (${c.completedAt})` : ""}</div>`).join("")}
+        </div>
+      </div>` : "";
     return `
     <div class="section-title">Réalisation des actions correctives</div>
+    ${collabSummary}
     <div class="field"><label>Actions réalisées</label><textarea id="i_actions" placeholder="Décrire les travaux effectués"></textarea></div>
     <div class="row2">
       <div class="field"><label>Date de réalisation</label><input type="date" id="i_date" ${minDate?`min="${minDate}"`:''} ${maxDate?`max="${maxDate}"`:''}></div>
@@ -1376,6 +1410,24 @@ function actionBlockHTML(dec){
     </div>
     <div class="field"><label>Image intervention réalisée</label><input type="file" id="i_photos" accept="image/*" multiple></div>
     <button class="btn" id="btnIntervention" data-id="${dec.id}">Enregistrer l'intervention</button>`;
+  }
+  if(role==="collaborateur" && dec.status==="planifie"){
+    const mine = (dec.collaborateurs || []).find(c=>state.currentUser && Number(c.userId)===Number(state.currentUser.id)) || {};
+    const minDate = calendarDateValue(dec.planification && dec.planification.date);
+    const maxDate = calendarDateValue(dec.affectation && dec.affectation.slaDate);
+    return `
+    <div class="section-title">Mes tâches réalisées</div>
+    <div class="kv"><div class="k">Deadline</div><div>${(dec.affectation && dec.affectation.slaDate) || "—"}</div></div>
+    <div class="kv"><div class="k">Planification</div><div>${(dec.planification && dec.planification.date) || "—"} à ${(dec.planification && dec.planification.heure) || "—"}</div></div>
+    ${mine.completedAt ? `<div class="hist-detail" style="display:block;margin-bottom:12px;">Dernière saisie : ${mine.completedAt}</div>` : ""}
+    <div class="row2">
+      <div class="field"><label>Date de réalisation</label><input type="date" id="c_date" value="${mine.interventionDate || ""}" ${minDate?`min="${minDate}"`:''} ${maxDate?`max="${maxDate}"`:''}></div>
+      <div class="field"><label>Durée calculée</label><input type="text" id="c_days" value="${mine.tempsJours || 0} jour(s)" disabled></div>
+    </div>
+    <div class="field"><label>Travaux réalisés par moi</label><textarea id="c_task" placeholder="Décrire uniquement les tâches que vous avez réalisées">${mine.taches || ""}</textarea></div>
+    <div class="field"><label>Difficultés rencontrées</label><input type="text" id="c_diff" placeholder="Optionnel" value="${mine.difficultes || ""}"></div>
+    <div class="field"><label>Image intervention réalisée</label><input type="file" id="c_photos" accept="image/*" multiple></div>
+    <button class="btn" id="btnCollaboratorTask" data-id="${dec.id}">Enregistrer mes tâches</button>`;
   }
   // HSE (et rôles équivalents): vérification
   if(isHSERole(role) && dec.status==="realisee"){
@@ -1566,6 +1618,13 @@ function bindEvents(){
       phoneNumbers: (document.getElementById("af_phone_values") && document.getElementById("af_phone_values").value.trim()) || ""
     });
   };
+  document.querySelectorAll("[data-collaborator]").forEach(option=>{
+    option.onclick = ()=>{
+      option.classList.toggle("selected");
+      const hidden = document.getElementById("p_tech");
+      if(hidden) hidden.value = selectedCollaboratorUsers().map(u=>u.full_name).join(", ");
+    };
+  });
   const btnPlanifier = document.getElementById("btnPlanifier");
   if(btnPlanifier) btnPlanifier.onclick = ()=>{
     const dec = findDec(btnPlanifier.dataset.id);
@@ -1583,6 +1642,7 @@ function bindEvents(){
       date: plannedDate,
       heure: document.getElementById("p_heure").value || "—",
       techniciens: document.getElementById("p_tech").value,
+      collaboratorIds: selectedCollaboratorUsers().map(u=>Number(u.id)),
       materiel: document.getElementById("p_mat").value
     });
   };
@@ -1616,6 +1676,23 @@ function bindEvents(){
   if(btnConforme) btnConforme.onclick = ()=> doVerification(btnConforme.dataset.id, true, document.getElementById("v_comment").value);
   const btnNonConforme = document.getElementById("btnNonConforme");
   if(btnNonConforme) btnNonConforme.onclick = ()=> doVerification(btnNonConforme.dataset.id, false, document.getElementById("v_comment").value);
+  const btnCollaboratorTask = document.getElementById("btnCollaboratorTask");
+  if(btnCollaboratorTask) btnCollaboratorTask.onclick = ()=>{
+    const dec = findDec(btnCollaboratorTask.dataset.id);
+    const interventionDate = document.getElementById("c_date").value;
+    const plannedDate = calendarDateValue(dec && dec.planification && dec.planification.date);
+    const deadlineDate = calendarDateValue(dec && dec.affectation && dec.affectation.slaDate);
+    if(!interventionDate){ toast("Merci de choisir la date de réalisation."); return; }
+    if(plannedDate && interventionDate < plannedDate){ toast("La date de réalisation ne peut pas être antérieure à la date de planification."); return; }
+    if(deadlineDate && interventionDate > deadlineDate){ toast("La date de réalisation ne peut pas dépasser la date limite."); return; }
+    doCollaboratorTask(btnCollaboratorTask.dataset.id, {
+      taskDescription: document.getElementById("c_task").value,
+      interventionDate,
+      days: daysBetween(plannedDate, interventionDate),
+      difficulties: document.getElementById("c_diff").value,
+      photos: Array.from((document.getElementById("c_photos") || {}).files || [])
+    });
+  };
 }
 
 /* ============================= BACKEND API BINDING ============================= */
@@ -1713,6 +1790,7 @@ function displayCategory(value){
 }
 
 function applyUserAtelierScope(user){
+  if(user && (user.role === "traitement" || user.role === "collaborateur")) return;
   const ateliers = String((user && user.responsible_ateliers) || "")
     .split(/[;,]/)
     .map(x=>x.trim())
@@ -1781,6 +1859,17 @@ function mapDeclaration(d){
       interventionDate: d.intervention_date || "",
       difficultes: d.intervention_difficulties || ""
     } : null,
+    collaborateurs: (d.collaborators || []).map(c=>({
+      id: c.id,
+      userId: c.user_id,
+      nom: c.full_name || c.email || "",
+      email: c.email || "",
+      taches: c.task_description || "",
+      interventionDate: c.intervention_date || "",
+      tempsJours: c.intervention_days || 0,
+      difficultes: c.difficulties || "",
+      completedAt: c.completed_at ? fmtDate(c.completed_at) : ""
+    })),
     verification: d.is_conform !== null && d.is_conform !== undefined ? {
       conforme: d.is_conform,
       commentaire: d.verification_comment || "",
@@ -1813,6 +1902,14 @@ function mapNotification(n){
 async function refreshData(){
   if(!state.auth.loggedIn || state.role === "declarant") return;
   try{
+    if(state.role === "collaborateur"){
+      const declarations = await api("/declarations");
+      state.declarations = declarations.map(mapDeclaration);
+      state.notifications = [];
+      state.dashboardStats = null;
+      state.tab = "declarations";
+      return;
+    }
     const stats = await api("/dashboard/stats");
     state.dashboardStats = stats;
     if(state.role === "chef_etablissement"){
@@ -1825,7 +1922,7 @@ async function refreshData(){
     state.declarations = declarations.map(mapDeclaration);
     const notifications = await api("/notifications").catch(()=>[]);
     state.notifications = notifications.map(mapNotification);
-    if(isHSERole(state.role)){
+    if(isHSERole(state.role) || state.role==="traitement"){
       state.users = await api("/auth/users").catch(()=>[]);
       if(state.role === "hse"){
         state.whatsappStatus = await api("/system/whatsapp-status").catch(()=>null);
@@ -1858,7 +1955,8 @@ roleLabel = function(r){
     chef_technicentre_tmlc:"Chef de technicentre TMLC",
     chef_etablissement:"Chef d'établissement",
     coordination:"Responsable Coordination",
-    traitement:"Responsable Traitement"
+    traitement:"Responsable Traitement",
+    collaborateur:"Collaborateur"
   }[r] || r;
 };
 
@@ -1871,6 +1969,7 @@ loginGateHTML = function(){
     {k:"chef_etablissement", icon:"▦", name:"Chef d'établissement", desc:"Tableau de bord"},
     {k:"coordination", icon:"◇", name:"Responsable Coordination", desc:"Circuit de traitement"},
     {k:"traitement", icon:"⚙", name:"Responsable Traitement", desc:"Traitement"},
+    {k:"collaborateur", icon:"▧", name:"Collaborateur", desc:"Tâches affectées"},
   ];
   return `
   <div class="login-wrap">
@@ -1931,7 +2030,7 @@ bindLoginEvents = function(){
       state.currentUser = data.user;
       applyUserAtelierScope(data.user);
       state.loginForm.error = "";
-      state.tab = "dashboard";
+      state.tab = data.user.role === "collaborateur" ? "declarations" : "dashboard";
       await refreshData();
       render();
     }catch(e){
@@ -1945,7 +2044,7 @@ bindLoginEvents = function(){
 sidebarHTML = function(){
   const role = state.role;
   const unread = state.notifications.filter(n=>!n.read && notifVisibleTo(n, role)).length;
-  let items = [{k:"dashboard", label:"Tableau de bord", icon:"▦"}];
+  let items = role==="collaborateur" ? [{k:"declarations", label:"Mes tâches", icon:"☰"}] : [{k:"dashboard", label:"Tableau de bord", icon:"▦"}];
   if(isHSERole(role)){
     items.push({k:"declarations", label:"Déclarations", icon:"☰"});
     items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
@@ -1953,6 +2052,7 @@ sidebarHTML = function(){
     if(role==="hse") items.push({k:"utilisateurs", label:"Utilisateurs", icon:"◉"});
   } else if(role==="traitement"){
     items.push({k:"notifications", label:"Notifications", icon:"◔", badge:unread});
+    items.push({k:"collaborateurs", label:"Mes collaborateurs", icon:"▧"});
     items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
   } else if(role==="chef_etablissement"){
     items.push({k:"qrcodes", label:"QR Ateliers", icon:"▣"});
@@ -1977,8 +2077,8 @@ sidebarHTML = function(){
 };
 
 topbarHTML = function(){
-  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle déclaration", declarations:"Déclarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs"};
-  const showAtelierFilter = !["nouvelle", "dashboard", "qrcodes", "utilisateurs"].includes(state.tab);
+  const titles = {dashboard:"Tableau de bord", nouvelle:"Nouvelle déclaration", declarations:state.role==="collaborateur"?"Mes tâches":"Déclarations", notifications:"Notifications", qrcodes:"QR Ateliers", utilisateurs:"Utilisateurs", collaborateurs:"Mes collaborateurs"};
+  const showAtelierFilter = state.role !== "collaborateur" && !["nouvelle", "dashboard", "qrcodes", "utilisateurs", "collaborateurs"].includes(state.tab);
   return `
   <div class="topbar">
     <h1>${titles[state.tab] || "Gesprec"}</h1>
@@ -2054,9 +2154,72 @@ function usersHTML(){
   </div>`;
 }
 
+function collaboratorDeclarationsHTML(){
+  const declarations = state.declarations || [];
+  if(!declarations.length){
+    return `<div class="panel"><div class="empty">Aucune tâche affectée à votre profil pour le moment.</div></div>`;
+  }
+  return `<div class="panel">
+    <div class="section-header">
+      <div style="font-size:12.5px;color:var(--text-dim);">${declarations.length} déclaration(s) affectée(s)</div>
+    </div>
+    ${declarations.map(d=>`
+      <div class="notif-row">
+        <div>
+          <div style="font-size:13.5px;font-weight:700;">${d.id} - ${d.atelier}</div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">Deadline : ${(d.affectation && d.affectation.slaDate) || "—"} · Statut : ${STATUS_LABEL[d.status] || d.status}</div>
+          <div style="font-size:12px;margin-top:5px;">${d.description.slice(0,130)}${d.description.length>130?"…":""}</div>
+        </div>
+        <button class="btn small" data-open="${d.id}">Voir / saisir</button>
+      </div>`).join("")}
+  </div>`;
+}
+
+function myCollaboratorsHTML(){
+  const users = state.users || [];
+  const allowedAteliers = splitMulti(state.currentUser && state.currentUser.responsible_ateliers);
+  const ateliers = allowedAteliers.length ? allowedAteliers : ATELIERS;
+  return `<div class="panel">
+    <div class="section-title">Mes collaborateurs</div>
+    <input type="hidden" id="u_id">
+    <input type="hidden" id="u_role" value="collaborateur">
+    <div class="row2">
+      <div class="field"><label>Email / identifiant</label><input type="text" id="u_email" placeholder="ex. collaborateur1@gesprec.local"></div>
+      <div class="field"><label>Nom complet</label><input type="text" id="u_name" placeholder="Nom du collaborateur"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Mot de passe</label><input type="text" id="u_password" placeholder="Mot de passe de connexion"></div>
+      <div class="field"><label>Téléphones WhatsApp</label><input type="text" id="u_phone_numbers" placeholder="ex. +212600000000"></div>
+    </div>
+    <div class="field">
+      <label>Ateliers autorisés</label>
+      <div id="u_ateliers" class="check-list">${ateliers.map(a=>`<div class="check-option" data-user-atelier="${a}"><span class="check-icon">&#10003;</span><span class="check-main">${a}</span></div>`).join("")}</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+      <button class="btn small" id="btnSaveUser">Enregistrer</button>
+      <button class="btn secondary small" id="btnClearUser">Nouveau</button>
+    </div>
+    <div class="section-title">Liste de mes collaborateurs</div>
+    ${users.map(u=>`
+      <div class="notif-row">
+        <div>
+          <div style="font-size:13.5px;font-weight:600;">${u.full_name}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${u.email} - ${u.phone_numbers || "Téléphone non renseigné"}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">Ateliers : ${u.responsible_ateliers || "Même périmètre que le responsable"}</div>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;">
+          <button class="btn secondary small" data-edit-user="${u.id}">Modifier</button>
+          <button class="btn secondary small" data-delete-user="${u.id}">Supprimer</button>
+        </div>
+      </div>`).join("") || `<div class="empty">Aucun collaborateur créé.</div>`}
+  </div>`;
+}
+
 tabContentHTML = function(){
   if(state.tab==="qrcodes") return qrCodesHTML();
   if(state.tab==="utilisateurs" && state.role==="hse") return usersHTML();
+  if(state.tab==="collaborateurs" && state.role==="traitement") return myCollaboratorsHTML();
+  if(state.role==="collaborateur") return collaboratorDeclarationsHTML();
   if(state.role === "chef_etablissement") return dashboardHTML();
   if(state.tab==="declarations" && isHSERole(state.role)) return kanbanHTML();
   if(state.tab==="notifications") return notificationsHTML();
@@ -2133,6 +2296,10 @@ bindEvents = function(){
     };
     const password = document.getElementById("u_password").value;
     if(password) payload.password = password;
+    if(state.role==="traitement" && !id && !password){
+      toast("Merci de définir le mot de passe du collaborateur.");
+      return;
+    }
     try{
       if(id) await api("/auth/users/" + id, {method:"PATCH", body:JSON.stringify(payload)});
       else await api("/auth/users", {method:"POST", body:JSON.stringify({...payload, password: password || "ChangeMe123!"})});
@@ -2320,6 +2487,7 @@ doPlanification = async function(id, payload){
       date: payload.date,
       time: payload.heure,
       technicians: payload.techniciens,
+      collaborator_ids: payload.collaboratorIds || [],
       material: payload.materiel
     })});
     await refreshData(); render(); toast("Intervention planifiée.");
@@ -2351,6 +2519,22 @@ doIntervention = async function(id, payload){
     }
     await refreshData(); render(); toast("Intervention enregistrée.");
   }catch(e){ toast(e.message || "Intervention impossible."); }
+};
+
+doCollaboratorTask = async function(id, payload){
+  const dec = findDec(id);
+  try{
+    await api("/declarations/" + dec.apiId + "/collaborator-task", {method:"POST", body:JSON.stringify({
+      task_description: payload.taskDescription,
+      intervention_date: payload.interventionDate,
+      days: Number(payload.days || 0),
+      difficulties: payload.difficulties
+    })});
+    if(payload.photos && payload.photos.length){
+      await uploadPhotoFiles(dec.apiId, payload.photos);
+    }
+    await refreshData(); render(); toast("Tâches enregistrées.");
+  }catch(e){ toast(e.message || "Enregistrement impossible."); }
 };
 
 doVerification = async function(id, conforme, commentaire){

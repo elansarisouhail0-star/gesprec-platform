@@ -1,3 +1,5 @@
+from collections import Counter
+
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, selectinload
 from fastapi import APIRouter, Depends
@@ -36,6 +38,15 @@ def count_by(db: Session, column, ateliers: list[str] | None = None) -> dict[str
     return {(key.value if hasattr(key, "value") else str(key)): count for key, count in rows}
 
 
+def assigned_to_treatment(user: User, declaration: Declaration) -> bool:
+    assigned_ids = split_multi(declaration.assigned_responsible_ids)
+    return not assigned_ids or str(user.id) in assigned_ids
+
+
+def enum_value(value: object) -> str:
+    return getattr(value, "value", value)
+
+
 @router.get("/stats", response_model=DashboardStats)
 def stats(
     db: Session = Depends(get_db),
@@ -44,6 +55,32 @@ def stats(
     ateliers = treatment_ateliers(user)
     if Role(user.role) == Role.traitement and not ateliers:
         return empty_stats()
+    if Role(user.role) == Role.traitement:
+        declarations = [
+            declaration
+            for declaration in db.scalars(
+                select(Declaration)
+                .where(Declaration.atelier.in_(ateliers))
+                .options(selectinload(Declaration.photos), selectinload(Declaration.history))
+                .order_by(desc(Declaration.created_at))
+            )
+            if assigned_to_treatment(user, declaration)
+        ]
+        total = len(declarations)
+        open_count = len([d for d in declarations if enum_value(d.status) != Status.cloture.value])
+        critical = len([d for d in declarations if enum_value(d.real_gravity) == Gravity.critique.value])
+        by_gravity_counts = Counter(enum_value(d.real_gravity) for d in declarations)
+        by_category_counts = Counter(enum_value(d.category) for d in declarations)
+        by_status_counts = Counter(enum_value(d.status) for d in declarations)
+        by_atelier_counts = Counter(d.atelier for d in declarations)
+        return DashboardStats(
+            totals={"total": total, "open": open_count, "critical": critical, "closed": total - open_count},
+            by_gravity={g.value: by_gravity_counts.get(g.value, 0) for g in Gravity},
+            by_category={c.value: by_category_counts.get(c.value, 0) for c in Category},
+            by_status={s.value: by_status_counts.get(s.value, 0) for s in Status},
+            by_atelier=dict(by_atelier_counts),
+            latest=declarations[:10],
+        )
     base_count = select(func.count()).select_from(Declaration)
     open_stmt = select(func.count()).select_from(Declaration).where(Declaration.status != Status.cloture)
     critical_stmt = select(func.count()).select_from(Declaration).where(Declaration.real_gravity == Gravity.critique)

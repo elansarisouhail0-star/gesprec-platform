@@ -27,7 +27,14 @@ def list_notifications(
             stmt = stmt.join(Notification.declaration).where(Declaration.atelier.in_(allowed_ateliers))
     else:
         raise HTTPException(status_code=403, detail="Rôle non autorisé")
-    return list(db.scalars(stmt.order_by(desc(Notification.created_at)).limit(200)))
+    notifications = list(db.scalars(stmt.order_by(desc(Notification.created_at)).limit(200)))
+    if role == Role.traitement:
+        notifications = [
+            notification for notification in notifications
+            if not split_multi(notification.declaration.assigned_responsible_ids)
+            or str(user.id) in split_multi(notification.declaration.assigned_responsible_ids)
+        ]
+    return notifications
 
 
 @router.post("/{notification_id}/read", response_model=NotificationOut)

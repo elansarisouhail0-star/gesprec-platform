@@ -13,10 +13,11 @@ from app.database import get_db
 from app.dependencies import get_optional_user, require_hse_group, require_roles
 from app.emailer import send_email
 from app.excel_export import build_declarations_xlsx
-from app.models import Audience, Category, Declaration, Gravity, Role, Status, User, utcnow
+from app.models import Audience, Category, Declaration, DeclarationCollaborator, Gravity, Role, Status, User, utcnow
 from app.schemas import (
     AnalysisIn,
     AssignmentIn,
+    CollaboratorTaskIn,
     DeclarationCreate,
     DeclarationOut,
     InterventionIn,
@@ -37,12 +38,31 @@ def treatment_ateliers(user: User) -> list[str]:
     return split_multi(user.responsible_ateliers)
 
 
+def user_ateliers(user: User) -> list[str]:
+    return split_multi(user.responsible_ateliers)
+
+
 def assert_treatment_atelier_access(user: User, declaration: Declaration) -> None:
     if Role(user.role) != Role.traitement:
         return
+    assigned_ids = split_multi(declaration.assigned_responsible_ids)
+    if assigned_ids and str(user.id) not in assigned_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Declaration non affectee a ce responsable traitement")
     allowed_ateliers = treatment_ateliers(user)
     if not allowed_ateliers or declaration.atelier not in allowed_ateliers:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Atelier non autorisé pour ce responsable traitement")
+
+
+def assert_collaborator_access(user: User, declaration: Declaration) -> None:
+    if Role(user.role) != Role.collaborateur:
+        return
+    if not any(assignment.user_id == user.id for assignment in declaration.collaborators):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Declaration non affectee a ce collaborateur")
+
+
+def assert_declaration_access(user: User, declaration: Declaration) -> None:
+    assert_treatment_atelier_access(user, declaration)
+    assert_collaborator_access(user, declaration)
 
 
 def parse_calendar_date(value: str | None) -> datetime | None:
@@ -82,6 +102,11 @@ def parse_phone_recipients(value: str | None) -> list[str]:
 def treatment_users_for_atelier(db: Session, atelier: str) -> list[User]:
     users = list(db.scalars(select(User).where(User.role == Role.traitement, User.is_active == True)))  # noqa: E712
     return [user for user in users if atelier in split_multi(user.responsible_ateliers)]
+
+
+def collaborator_users_for_atelier(db: Session, atelier: str) -> list[User]:
+    users = list(db.scalars(select(User).where(User.role == Role.collaborateur, User.is_active == True)))  # noqa: E712
+    return [user for user in users if not user_ateliers(user) or atelier in user_ateliers(user)]
 
 
 def declaration_whatsapp_message(declaration: Declaration) -> str:
@@ -132,7 +157,11 @@ def load_declaration(db: Session, declaration_id: int) -> Declaration:
     declaration = db.scalar(
         select(Declaration)
         .where(Declaration.id == declaration_id)
-        .options(selectinload(Declaration.photos), selectinload(Declaration.history))
+        .options(
+            selectinload(Declaration.photos),
+            selectinload(Declaration.history),
+            selectinload(Declaration.collaborators).selectinload(DeclarationCollaborator.user),
+        )
     )
     if not declaration:
         raise HTTPException(status_code=404, detail="Déclaration introuvable")
@@ -205,17 +234,23 @@ def create_declaration(
 @router.get("", response_model=list[DeclarationOut])
 def list_declarations(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement)),
+    user: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement, Role.collaborateur)),
     status_filter: Status | None = Query(default=None, alias="status"),
     atelier: str | None = None,
     category: Category | None = None,
     gravity: Gravity | None = None,
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[Declaration]:
-    stmt = select(Declaration).options(selectinload(Declaration.photos), selectinload(Declaration.history))
+    stmt = select(Declaration).options(
+        selectinload(Declaration.photos),
+        selectinload(Declaration.history),
+        selectinload(Declaration.collaborators).selectinload(DeclarationCollaborator.user),
+    )
     allowed_ateliers = treatment_ateliers(user)
     if Role(user.role) == Role.traitement and not allowed_ateliers:
         return []
+    if Role(user.role) == Role.collaborateur:
+        stmt = stmt.join(DeclarationCollaborator).where(DeclarationCollaborator.user_id == user.id)
     if allowed_ateliers:
         stmt = stmt.where(Declaration.atelier.in_(allowed_ateliers))
     if status_filter:
@@ -226,7 +261,13 @@ def list_declarations(
         stmt = stmt.where(Declaration.category == category)
     if gravity:
         stmt = stmt.where(Declaration.real_gravity == gravity)
-    return list(db.scalars(stmt.order_by(desc(Declaration.created_at)).limit(limit)))
+    declarations = list(db.scalars(stmt.order_by(desc(Declaration.created_at)).limit(limit)).unique())
+    if Role(user.role) == Role.traitement:
+        declarations = [
+            declaration for declaration in declarations
+            if not split_multi(declaration.assigned_responsible_ids) or str(user.id) in split_multi(declaration.assigned_responsible_ids)
+        ]
+    return declarations
 
 
 @router.get("/export.xlsx")
@@ -264,10 +305,10 @@ def delete_all_declarations(
 def get_declaration(
     declaration_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement)),
+    user: User = Depends(require_roles(Role.hse, Role.chef_technicentre_tmlc, Role.coordination, Role.traitement, Role.collaborateur)),
 ) -> Declaration:
     declaration = load_declaration(db, declaration_id)
-    assert_treatment_atelier_access(user, declaration)
+    assert_declaration_access(user, declaration)
     return declaration
 
 
@@ -305,7 +346,11 @@ def assign_declaration(
     user: User = Depends(require_hse_group),
 ) -> Declaration:
     declaration = load_declaration(db, declaration_id)
-    assert_status(declaration, Status.analyse)
+    if Status(declaration.status) not in {Status.analyse, Status.replanification}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Statut attendu: analyse ou replanification; statut actuel: {declaration.status}",
+        )
     selected_users = []
     if payload.responsible_ids:
         selected_users = list(db.scalars(select(User).where(User.id.in_(payload.responsible_ids), User.role == Role.traitement)))
@@ -324,6 +369,7 @@ def assign_declaration(
     responsible_label = ", ".join(selected_names) if selected_names else payload.responsible
     declaration.assigned_service = payload.service
     declaration.assigned_responsible = responsible_label
+    declaration.assigned_responsible_ids = ", ".join(str(user.id) for user in selected_users) if selected_users else None
     declaration.priority = payload.priority
     declaration.sla_date = payload.sla_date
     declaration.resources = payload.resources
@@ -407,9 +453,37 @@ def plan_declaration(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La date de planification ne peut pas être supérieure à la date limite",
         )
+    selected_collaborators = []
+    if payload.collaborator_ids:
+        selected_collaborators = list(
+            db.scalars(
+                select(User).where(
+                    User.id.in_(payload.collaborator_ids),
+                    User.role == Role.collaborateur,
+                    User.is_active == True,  # noqa: E712
+                )
+            )
+        )
+        if len(selected_collaborators) != len(set(payload.collaborator_ids)):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Collaborateur selectionne introuvable ou inactif")
+        invalid_collaborators = [
+            collaborator
+            for collaborator in selected_collaborators
+            if collaborator.manager_id != user.id or (user_ateliers(collaborator) and declaration.atelier not in user_ateliers(collaborator))
+        ]
+        if invalid_collaborators:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Un collaborateur selectionne n'est pas rattache a ce responsable traitement ou a l'atelier cible",
+            )
+    for assignment in list(declaration.collaborators):
+        db.delete(assignment)
+    for collaborator in selected_collaborators:
+        db.add(DeclarationCollaborator(declaration=declaration, user=collaborator))
+    collaborator_names = [collaborator.full_name for collaborator in selected_collaborators]
     declaration.planned_date = payload.date
     declaration.planned_time = payload.time
-    declaration.planned_technicians = payload.technicians
+    declaration.planned_technicians = ", ".join(collaborator_names) if collaborator_names else payload.technicians
     declaration.planned_material = payload.material
     declaration.planned_at = utcnow()
     declaration.planned_by_id = user.id
@@ -417,7 +491,7 @@ def plan_declaration(
     add_history(
         db,
         declaration,
-        f"Phase planification - intervention planifiée le {payload.date} à {payload.time}; collaborateurs : {payload.technicians or '-'}; matériel : {payload.material or '-'}",
+        f"Phase planification - intervention planifiée le {payload.date} à {payload.time}; collaborateurs : {declaration.planned_technicians or '-'}; matériel : {payload.material or '-'}",
         user,
     )
     add_notification(db, declaration, f"Déclaration {declaration.reference} planifiée", Audience.admin)
@@ -469,6 +543,39 @@ def complete_intervention(
     return load_declaration(db, declaration_id)
 
 
+@router.post("/{declaration_id}/collaborator-task", response_model=DeclarationOut)
+def complete_collaborator_task(
+    declaration_id: int,
+    payload: CollaboratorTaskIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(Role.collaborateur)),
+) -> Declaration:
+    declaration = load_declaration(db, declaration_id)
+    assert_collaborator_access(user, declaration)
+    if Status(declaration.status) != Status.planifie:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Statut attendu: planifie; statut actuel: {declaration.status}",
+        )
+    assignment = next((item for item in declaration.collaborators if item.user_id == user.id), None)
+    if not assignment:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Declaration non affectee a ce collaborateur")
+    assignment.task_description = payload.task_description
+    assignment.intervention_date = payload.intervention_date
+    assignment.intervention_days = payload.days
+    assignment.difficulties = payload.difficulties
+    assignment.completed_at = utcnow()
+    add_history(
+        db,
+        declaration,
+        f"Phase intervention - taches collaborateur saisies par {user.full_name}; difficultes : {payload.difficulties or '-'}",
+        user,
+    )
+    add_notification(db, declaration, f"Taches collaborateur saisies pour {declaration.reference} par {user.full_name}", Audience.admin)
+    db.commit()
+    return load_declaration(db, declaration_id)
+
+
 @router.post("/{declaration_id}/verification", response_model=DeclarationOut)
 def verify_declaration(
     declaration_id: int,
@@ -487,8 +594,37 @@ def verify_declaration(
         add_history(db, declaration, f"Phase vérification - conforme; déclaration clôturée; commentaire : {payload.comment or '-'}", user)
         add_notification(db, declaration, f"Déclaration {declaration.reference} conforme et clôturée", Audience.all)
     else:
-        declaration.status = Status.planifie
+        declaration.status = Status.replanification
+        declaration.planned_date = None
+        declaration.planned_time = None
+        declaration.planned_technicians = None
+        declaration.planned_material = None
+        declaration.planned_at = None
+        declaration.planned_by_id = None
+        declaration.intervention_actions = None
+        declaration.intervention_minutes = None
+        declaration.intervention_days = None
+        declaration.intervention_date = None
+        declaration.intervention_difficulties = None
+        declaration.intervention_at = None
+        declaration.intervention_by_id = None
+        for assignment in list(declaration.collaborators):
+            db.delete(assignment)
         add_history(db, declaration, f"Phase vérification - non conforme; replanification demandée; commentaire : {payload.comment or '-'}", user)
         add_notification(db, declaration, f"Déclaration {declaration.reference} non conforme - replanification requise", Audience.all)
+        send_or_trace_whatsapp(
+            db,
+            declaration,
+            parse_phone_recipients(declaration.assigned_phone_numbers),
+            (
+                "Bonjour,\n"
+                f"Traitement non conforme pour la declaration {declaration.reference}.\n"
+                f"Atelier : {declaration.atelier}\n"
+                f"Commentaire QSSE : {payload.comment or '-'}\n"
+                "Merci de reprendre la planification apres mise a jour du deadline."
+            ),
+            "Phase verification - alerte WhatsApp non-conformite responsable traitement",
+            user,
+        )
     db.commit()
     return load_declaration(db, declaration_id)

@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.dependencies import get_optional_user
-from app.models import Photo, User
-from app.routers.declarations import load_declaration
+from app.models import Photo, Role, User
+from app.routers.declarations import assert_collaborator_access, assert_treatment_atelier_access, load_declaration
 from app.schemas import DeclarationOut
 from app.services import add_history
 
@@ -35,6 +35,15 @@ async def upload_photo(
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Fichier trop volumineux")
 
     declaration = load_declaration(db, declaration_id)
+    if phase == "intervention":
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentification requise")
+        if Role(user.role) == Role.traitement:
+            assert_treatment_atelier_access(user, declaration)
+        elif Role(user.role) == Role.collaborateur:
+            assert_collaborator_access(user, declaration)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role non autorise pour les photos intervention")
     upload_root = Path(settings.upload_dir)
     upload_root.mkdir(parents=True, exist_ok=True)
     extension = Path(file.filename or "photo").suffix.lower()[:12] or ".jpg"
