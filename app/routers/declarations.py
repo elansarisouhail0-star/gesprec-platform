@@ -2,6 +2,7 @@ from datetime import datetime
 from io import BytesIO
 import re
 
+import logging
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -20,6 +21,7 @@ from app.schemas import (
     CollaboratorTaskIn,
     DeclarationCreate,
     DeclarationOut,
+    AssignmentOut,
     InterventionIn,
     PlanningIn,
     ResetDeclarationsIn,
@@ -30,6 +32,7 @@ from app.services import add_history, add_notification, next_reference
 from app.whatsapp import send_whatsapp_message, whatsapp_link
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
+logger = logging.getLogger("gesprec")
 
 
 def treatment_ateliers(user: User) -> list[str]:
@@ -338,13 +341,13 @@ def analyse_declaration(
     return load_declaration(db, declaration_id)
 
 
-@router.post("/{declaration_id}/affectation", response_model=DeclarationOut)
+@router.post("/{declaration_id}/affectation", response_model=AssignmentOut)
 def assign_declaration(
     declaration_id: int,
     payload: AssignmentIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_hse_group),
-) -> Declaration:
+) -> AssignmentOut:
     declaration = load_declaration(db, declaration_id)
     if Status(declaration.status) not in {Status.analyse, Status.replanification}:
         raise HTTPException(
@@ -422,16 +425,21 @@ def assign_declaration(
             add_history(db, declaration, f"Phase affectation - échec de l'envoi de l'email de date limite aux destinataires {', '.join(recipients)} : {exc}", user)
     else:
         add_history(db, declaration, "Phase affectation - aucun destinataire email renseigné", user)
-    send_or_trace_whatsapp(
-        db,
-        declaration,
-        phone_recipients,
-        deadline_whatsapp_message(declaration),
-        "Phase affectation - notification WhatsApp de date limite",
-        user,
-    )
+
+    whatsapp_links = [whatsapp_link(phone, deadline_whatsapp_message(declaration)) for phone in phone_recipients if phone]
+    if whatsapp_links:
+        add_history(
+            db,
+            declaration,
+            f"Phase affectation - lien(s) WhatsApp généré(s) pour {len(whatsapp_links)} destinataire(s)",
+            user,
+        )
+    else:
+        add_history(db, declaration, "Phase affectation - aucun numéro WhatsApp renseigné pour la notification", user)
+
     db.commit()
-    return load_declaration(db, declaration_id)
+    declaration_out = load_declaration(db, declaration_id)
+    return AssignmentOut(declaration=declaration_out, whatsapp_links=whatsapp_links)
 
 
 @router.post("/{declaration_id}/planification", response_model=DeclarationOut)

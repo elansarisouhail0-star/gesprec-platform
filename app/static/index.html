@@ -564,16 +564,31 @@ function doAnalyse(id, payload){
   pushHistory(dec, "Analyse effectuée par le Responsable QSSE — risque : " + payload.typeRisque);
   persist(); render(); toast("Analyse enregistrée.");
 }
-function doAffectation(id, payload){
+doAffectation = async function(id, payload){
   const dec = findDec(id);
-  dec.affectation = payload;
-  dec.status = "affecte";
-  pushHistory(dec, "Affecté au service " + payload.service + " (responsable : " + payload.responsable + ", SLA : " + payload.slaDate + ")");
-  notify(dec, "Déclaration " + dec.id + " affectée à " + payload.service);
-  if(payload.email){ sendDeadlineEmail(dec, payload.email); }
-  persist(); render();
-  toast("Déclaration affectée." + (payload.email ? " Email envoyé à " + payload.email + "." : ""));
-}
+  try{
+    const response = await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
+      service: payload.service,
+      responsable: payload.responsable,
+      responsible_ids: payload.responsibleIds || [],
+      priority: payload.priorite,
+      sla_date: payload.slaDate,
+      resources: payload.ressources,
+      phone_numbers: payload.phoneNumbers || null,
+      email: null
+    })});
+    await refreshData(); render();
+    const links = response.whatsapp_links || [];
+    if(links.length === 1){
+      window.open(links[0], "_blank");
+      toast("Déclaration affectée. Ouverture de WhatsApp...");
+    }else if(links.length > 1){
+      toast("Déclaration affectée. " + links.length + " lien(s) WhatsApp à ouvrir manuellement (voir historique).");
+    }else{
+      toast("Déclaration affectée.");
+    }
+  }catch(e){ toast(e.message || "Affectation impossible."); }
+};
 function sendDeadlineEmail(dec, email){
   const subject = encodeURIComponent("Date limite de traitement — Déclaration " + dec.id);
   const body = encodeURIComponent(
@@ -2459,7 +2474,7 @@ doAffectation = async function(id, payload){
   try{
     await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
       service: payload.service,
-      responsible: payload.responsable,
+      responsable: payload.responsable,
       responsible_ids: payload.responsibleIds || [],
       priority: payload.priorite,
       sla_date: payload.slaDate,
