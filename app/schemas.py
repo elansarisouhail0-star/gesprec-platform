@@ -228,3 +228,7 @@ class DashboardStats(BaseModel):
 
 class ErrorOut(BaseModel):
     detail: str | list[dict[str, Any]]
+
+class AssignmentOut(BaseModel):
+    declaration: DeclarationOut
+    whatsapp_links: list[str] = []
