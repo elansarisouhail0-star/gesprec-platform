@@ -564,31 +564,6 @@ function doAnalyse(id, payload){
   pushHistory(dec, "Analyse effectuée par le Responsable QSSE — risque : " + payload.typeRisque);
   persist(); render(); toast("Analyse enregistrée.");
 }
-doAffectation = async function(id, payload){
-  const dec = findDec(id);
-  try{
-    const response = await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
-      service: payload.service,
-      responsable: payload.responsable,
-      responsible_ids: payload.responsibleIds || [],
-      priority: payload.priorite,
-      sla_date: payload.slaDate,
-      resources: payload.ressources,
-      phone_numbers: payload.phoneNumbers || null,
-      email: null
-    })});
-    await refreshData(); render();
-    const links = response.whatsapp_links || [];
-    if(links.length === 1){
-      window.open(links[0], "_blank");
-      toast("Déclaration affectée. Ouverture de WhatsApp...");
-    }else if(links.length > 1){
-      toast("Déclaration affectée. " + links.length + " lien(s) WhatsApp à ouvrir manuellement (voir historique).");
-    }else{
-      toast("Déclaration affectée.");
-    }
-  }catch(e){ toast(e.message || "Affectation impossible."); }
-};
 function sendDeadlineEmail(dec, email){
   const subject = encodeURIComponent("Date limite de traitement — Déclaration " + dec.id);
   const body = encodeURIComponent(
@@ -2470,20 +2445,67 @@ doAnalyse = async function(id, payload){
 };
 
 doAffectation = async function(id, payload){
-  const dec = findDec(id);
-  try{
-    await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
-      service: payload.service,
-      responsable: payload.responsable,
-      responsible_ids: payload.responsibleIds || [],
-      priority: payload.priorite,
-      sla_date: payload.slaDate,
-      resources: payload.ressources,
-      phone_numbers: payload.phoneNumbers || null,
-      email: null
-    })});
-    await refreshData(); render(); toast("Déclaration affectée.");
-  }catch(e){ toast(e.message || "Affectation impossible."); }
+    const dec = findDec(id);
+
+    try{
+        const response = await api("/declarations/" + dec.apiId + "/affectation", {
+            method: "POST",
+            body: JSON.stringify({
+                service: payload.service,
+                responsible: payload.responsable,
+                responsible_ids: payload.responsibleIds || [],
+                priority: payload.priorite,
+                sla_date: payload.slaDate,
+                resources: payload.ressources,
+                phone_numbers: payload.phoneNumbers || null,
+                email: null
+            })
+        });
+
+        await refreshData();
+        render();
+
+        // Open WhatsApp after a successful assignment
+        const phoneList = splitMulti(payload.phoneNumbers);
+
+        if (phoneList.length) {
+
+            const message = `
+Bonjour,
+
+Une nouvelle déclaration GESPREC vous a été affectée.
+
+Référence : ${dec.id}
+Atelier : ${dec.atelier}
+Service : ${payload.service}
+Priorité : ${payload.priorite}
+Date limite : ${payload.slaDate}
+
+Merci de consulter la plateforme GESPREC afin de traiter cette demande.
+
+Cordialement.
+`;
+
+            phoneList.forEach(phone => {
+
+                const cleanPhone = phone
+                    .replace(/\s+/g, "")
+                    .replace("+", "");
+
+                const url =
+                    `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+                window.open(url, "_blank");
+            });
+
+            toast("Déclaration affectée. Notification WhatsApp ouverte.");
+        } else {
+            toast("Déclaration affectée.");
+        }
+
+    } catch(e){
+        toast(e.message || "Affectation impossible.");
+    }
 };
 
 doPlanification = async function(id, payload){

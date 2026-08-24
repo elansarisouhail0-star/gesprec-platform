@@ -12,10 +12,10 @@ DEFAULT_USERS = [
     ("chef@gesprec.local", "Chef de technicentre TMLC", Role.chef_technicentre_tmlc, "Chef12345!", "", ""),
     ("etablissement@gesprec.local", "Chef d'établissement", Role.chef_etablissement, "Etab12345!", "", ""),
     ("coordination@gesprec.local", "Responsable Coordination", Role.coordination, "Coord12345!", "", ""),
-    ("traitement@gesprec.local", "Responsable Traitement principal", Role.traitement, "Trait12345!", ", ".join(ATELIERS), ""),
-    ("traitement1@gesprec.local", "Responsable Traitement HITACHI", Role.traitement, "Trait112345!", "HITACHI Remise, HITACHI VA", ""),
-    ("traitement2@gesprec.local", "Responsable Traitement DIESEL", Role.traitement, "Trait212345!", "DIESEL, POSTE GASOIL, MAGASIN DIESEL", ""),
-    ("traitement3@gesprec.local", "Responsable Traitement TOUR EN FOSSE", Role.traitement, "Trait312345!", "TOUR EN FOSSE", ""),
+    ("traitement@gesprec.local", "Responsable Traitement principal", Role.traitement,  "Trait12345!", ", ".join(ATELIERS), "+212661234501"),
+    ("traitement1@gesprec.local", "Responsable Traitement HITACHI", Role.traitement, "Trait112345!", "HITACHI Remise, HITACHI VA", "+212661234502"),
+    ("traitement2@gesprec.local", "Responsable Traitement DIESEL", Role.traitement, "Trait212345!", "DIESEL, POSTE GASOIL, MAGASIN DIESEL", "+212661234503"),
+    ("traitement3@gesprec.local", "Responsable Traitement TOUR EN FOSSE", Role.traitement, "Trait312345!", "TOUR EN FOSSE", "+212661234504"),
 ]
 
 
