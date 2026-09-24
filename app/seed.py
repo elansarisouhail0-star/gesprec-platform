@@ -21,6 +21,12 @@ DEFAULT_USERS = [
 
 def seed_default_users(db: Session) -> None:
     with db.no_autoflush:
+        # Preserve existing permissions while splitting the former combined label.
+        for user in db.scalars(select(User)):
+            if user.responsible_ateliers and "Antenne CRN + Vestiaire" in user.responsible_ateliers:
+                user.responsible_ateliers = user.responsible_ateliers.replace(
+                    "Antenne CRN + Vestiaire", "Antenne CRN, Vestiaire"
+                )
         old_hse = db.scalar(select(User).where(User.email == "hse@gesprec.local"))
         qsse_user = db.scalar(select(User).where(User.email == "qsse@gesprec.local"))
         role_hse = db.scalar(select(User).where(User.role == Role.hse))
