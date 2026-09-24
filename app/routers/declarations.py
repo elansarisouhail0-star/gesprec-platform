@@ -2,8 +2,6 @@ from datetime import datetime
 from io import BytesIO
 import re
 
-import logging
-from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import desc, select
@@ -12,7 +10,6 @@ from sqlalchemy.orm import Session, selectinload
 from app.constants import split_multi
 from app.database import get_db
 from app.dependencies import get_optional_user, require_hse_group, require_roles
-from app.emailer import send_email
 from app.excel_export import build_declarations_xlsx
 from app.models import Audience, Category, Declaration, DeclarationCollaborator, Gravity, Role, Status, User, utcnow
 from app.schemas import (
@@ -21,7 +18,6 @@ from app.schemas import (
     CollaboratorTaskIn,
     DeclarationCreate,
     DeclarationOut,
-    AssignmentOut,
     InterventionIn,
     PlanningIn,
     ResetDeclarationsIn,
@@ -32,7 +28,6 @@ from app.services import add_history, add_notification, next_reference
 from app.whatsapp import send_whatsapp_message, whatsapp_link
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
-logger = logging.getLogger("gesprec")
 
 
 def treatment_ateliers(user: User) -> list[str]:
@@ -79,23 +74,30 @@ def parse_calendar_date(value: str | None) -> datetime | None:
     return None
 
 
-def parse_email_recipients(value: str | None) -> list[str]:
-    if not value:
-        return []
-    raw_items = [item.strip() for item in re.split(r"[;,]", value) if item.strip()]
-    recipients: list[str] = []
-    invalid: list[str] = []
-    for item in raw_items:
-        try:
-            recipients.append(validate_email(item, check_deliverability=False).normalized)
-        except EmailNotValidError:
-            invalid.append(item)
-    if invalid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Adresse email invalide: " + ", ".join(invalid),
-        )
-    return recipients
+def sync_collaborator_realization(declaration: Declaration) -> None:
+    completed = [item for item in declaration.collaborators if item.task_description]
+    if not completed:
+        return
+    action_lines = []
+    difficulty_lines = []
+    dated_items = []
+    max_days = 0
+    for item in completed:
+        name = item.full_name or item.email or f"Collaborateur {item.user_id}"
+        action_lines.append(f"{name}: {item.task_description}")
+        if item.difficulties:
+            difficulty_lines.append(f"{name}: {item.difficulties}")
+        if item.intervention_days is not None:
+            max_days = max(max_days, item.intervention_days)
+        parsed_date = parse_calendar_date(item.intervention_date)
+        if parsed_date:
+            dated_items.append((parsed_date, item.intervention_date))
+    declaration.intervention_actions = "\n".join(action_lines)
+    declaration.intervention_difficulties = "\n".join(difficulty_lines) if difficulty_lines else None
+    declaration.intervention_days = max_days
+    declaration.intervention_minutes = 0
+    if dated_items:
+        declaration.intervention_date = max(dated_items, key=lambda pair: pair[0])[1]
 
 
 def parse_phone_recipients(value: str | None) -> list[str]:
@@ -341,13 +343,13 @@ def analyse_declaration(
     return load_declaration(db, declaration_id)
 
 
-@router.post("/{declaration_id}/affectation", response_model=AssignmentOut)
+@router.post("/{declaration_id}/affectation", response_model=DeclarationOut)
 def assign_declaration(
     declaration_id: int,
     payload: AssignmentIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_hse_group),
-) -> AssignmentOut:
+) -> Declaration:
     declaration = load_declaration(db, declaration_id)
     if Status(declaration.status) not in {Status.analyse, Status.replanification}:
         raise HTTPException(
@@ -376,8 +378,6 @@ def assign_declaration(
     declaration.priority = payload.priority
     declaration.sla_date = payload.sla_date
     declaration.resources = payload.resources
-    recipients = parse_email_recipients(payload.email)
-    declaration.assigned_email = ", ".join(recipients) if recipients else None
     declaration.assigned_phone_numbers = ", ".join(phone_recipients) if phone_recipients else None
     declaration.assigned_at = utcnow()
     declaration.assigned_by_id = user.id
@@ -393,53 +393,16 @@ def assign_declaration(
         user,
     )
     add_notification(db, declaration, f"Déclaration {declaration.reference} affectée à {payload.service}", Audience.all)
-    if recipients:
-        try:
-            sent_count = 0
-            body = (
-                "Bonjour,\n\n"
-                "Une déclaration Gesprec vous a été affectée.\n\n"
-                f"Référence : {declaration.reference}\n"
-                f"Atelier : {declaration.atelier}\n"
-                f"Gravité : {declaration.real_gravity}\n"
-                f"Service : {payload.service}\n"
-                f"Responsable : {responsible_label}\n"
-                f"Priorité : {payload.priority}\n"
-                f"Date limite SLA : {payload.sla_date or '-'}\n\n"
-                "Merci de planifier et réaliser le traitement dans les délais.\n"
-            )
-            for recipient in recipients:
-                if send_email(recipient, f"Date limite de traitement - Déclaration {declaration.reference}", body):
-                    sent_count += 1
-            add_history(
-                db,
-                declaration,
-                (
-                    f"Phase affectation - email de date limite envoyé à {sent_count}/{len(recipients)} destinataire(s) : {', '.join(recipients)}"
-                    if sent_count == len(recipients)
-                    else f"Phase affectation - email de date limite non envoyé à tous les destinataires ({sent_count}/{len(recipients)}) - vérifier SMTP : {', '.join(recipients)}"
-                ),
-                user,
-            )
-        except Exception as exc:
-            add_history(db, declaration, f"Phase affectation - échec de l'envoi de l'email de date limite aux destinataires {', '.join(recipients)} : {exc}", user)
-    else:
-        add_history(db, declaration, "Phase affectation - aucun destinataire email renseigné", user)
-
-    whatsapp_links = [whatsapp_link(phone, deadline_whatsapp_message(declaration)) for phone in phone_recipients if phone]
-    if whatsapp_links:
-        add_history(
-            db,
-            declaration,
-            f"Phase affectation - lien(s) WhatsApp généré(s) pour {len(whatsapp_links)} destinataire(s)",
-            user,
-        )
-    else:
-        add_history(db, declaration, "Phase affectation - aucun numéro WhatsApp renseigné pour la notification", user)
-
+    send_or_trace_whatsapp(
+        db,
+        declaration,
+        phone_recipients,
+        deadline_whatsapp_message(declaration),
+        "Phase affectation - notification WhatsApp de date limite",
+        user,
+    )
     db.commit()
-    declaration_out = load_declaration(db, declaration_id)
-    return AssignmentOut(declaration=declaration_out, whatsapp_links=whatsapp_links)
+    return load_declaration(db, declaration_id)
 
 
 @router.post("/{declaration_id}/planification", response_model=DeclarationOut)
@@ -568,11 +531,32 @@ def complete_collaborator_task(
     assignment = next((item for item in declaration.collaborators if item.user_id == user.id), None)
     if not assignment:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Declaration non affectee a ce collaborateur")
+    deadline_date = parse_calendar_date(declaration.sla_date)
+    if deadline_date and datetime.now().date() > deadline_date.date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La date limite est depassee; le collaborateur ne peut plus modifier sa saisie",
+        )
+    planned_date = parse_calendar_date(declaration.planned_date)
+    intervention_date = parse_calendar_date(payload.intervention_date)
+    if not intervention_date:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date de realisation obligatoire")
+    if planned_date and intervention_date < planned_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La date de realisation ne peut pas etre inferieure a la date de planification",
+        )
+    if deadline_date and intervention_date > deadline_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La date de realisation ne peut pas etre superieure a la date limite",
+        )
     assignment.task_description = payload.task_description
     assignment.intervention_date = payload.intervention_date
     assignment.intervention_days = payload.days
     assignment.difficulties = payload.difficulties
     assignment.completed_at = utcnow()
+    sync_collaborator_realization(declaration)
     add_history(
         db,
         declaration,

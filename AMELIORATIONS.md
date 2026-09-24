@@ -19,8 +19,8 @@
 
 ## Priorite 2 - Qualite operationnelle
 
-1. Notifications email et rappels SLA.
-   Envoyer automatiquement un email au responsable affecte et relancer avant/apres deadline.
+1. Notifications WhatsApp et rappels SLA.
+   Notifier le responsable affecte et relancer avant/apres deadline via WhatsApp.
 
 2. Recherche et filtres avances.
    Filtres par atelier, gravite, statut, periode, responsable, retard, categorie.

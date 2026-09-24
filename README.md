@@ -87,8 +87,6 @@ Change ces comptes avant tout deploiement reel. Aucun compte declarant n'est cre
 | GET | `/dashboard/stats` | QSSE, chef technicentre TMLC, coordination, traitement, chef d'etablissement |
 | GET | `/qr/ateliers` | public |
 | GET | `/qr/declaration.svg` | public |
-| GET | `/system/email-status` | QSSE |
-| POST | `/system/email-test` | QSSE |
 | POST | `/system/whatsapp-reminders` | QSSE |
 
 Le Chef d'etablissement est volontairement limite au dashboard. Il ne peut pas lister, ouvrir, modifier ou traiter les declarations.
@@ -169,7 +167,6 @@ Ensuite:
 - Utiliser HTTPS derriere Nginx/Caddy/Traefik.
 - Sauvegarder PostgreSQL et le dossier uploads.
 - Ajouter Alembic avant la premiere evolution de schema.
-- Ajouter un service email pour les deadlines SLA.
 
 ## QR codes ateliers
 
@@ -181,7 +178,7 @@ http://localhost:8000/qr/ateliers
 
 Le QR unique ouvre directement le formulaire declarant; le declarant choisit ensuite l'atelier cible.
 
-## WhatsApp et emails SMTP
+## WhatsApp
 
 Le canal principal de notification est WhatsApp. Pour l'envoi automatique via WhatsApp Cloud API, configurer:
 
@@ -190,20 +187,7 @@ WHATSAPP_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 ```
 
-Sans ces variables, l'application trace dans l'historique des liens `wa.me` a ouvrir manuellement.
-
-L'envoi email reste disponible en secours uniquement si ces variables sont configurees:
-
-```text
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USERNAME=
-SMTP_PASSWORD=
-SMTP_FROM=
-SMTP_TLS=true
-```
-
-Sans SMTP, l'application conserve l'affectation et utilise le flux WhatsApp.
+Sans ces variables, l'application conserve l'affectation et trace dans l'historique les liens `wa.me` a ouvrir manuellement.
 
 ## Deploiement GitHub + Railway
 

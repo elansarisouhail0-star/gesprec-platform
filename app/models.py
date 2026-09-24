@@ -97,7 +97,6 @@ class Declaration(Base):
     priority: Mapped[str | None] = mapped_column(String(80), nullable=True)
     sla_date: Mapped[str | None] = mapped_column(String(80), nullable=True)
     resources: Mapped[str | None] = mapped_column(Text, nullable=True)
-    assigned_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     assigned_phone_numbers: Mapped[str | None] = mapped_column(String(500), nullable=True)
     assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     assigned_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

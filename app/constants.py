@@ -14,6 +14,7 @@ ATELIERS = [
     "COORDINATION",
     "PRESTATAIRES MALOCO",
     "INSTALLATION ET OUTILLAGE",
+    "Antenne CRN + Vestiaire",
 ]
 
 

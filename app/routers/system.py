@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import require_roles
 from app.config import get_settings
-from app.emailer import send_email, smtp_enabled
 from app.constants import split_multi
 from app.models import Declaration, HistoryEvent, Role, Status, User
 from app.routers.declarations import send_or_trace_whatsapp
@@ -17,38 +16,8 @@ from app.whatsapp import send_whatsapp_message, whatsapp_enabled, whatsapp_link
 router = APIRouter(prefix="/system", tags=["system"])
 
 
-class EmailTestIn(BaseModel):
-    to_email: str = Field(min_length=3, max_length=255)
-
-
 class WhatsAppTestIn(BaseModel):
     phone_number: str = Field(min_length=6, max_length=40)
-
-
-@router.get("/email-status")
-def email_status(_: User = Depends(require_roles(Role.hse))) -> dict[str, bool | int]:
-    settings = get_settings()
-    return {
-        "smtp_enabled": smtp_enabled(),
-        "smtp_host_configured": bool(settings.smtp_host),
-        "smtp_from_configured": bool(settings.smtp_from),
-        "smtp_username_configured": bool(settings.smtp_username),
-        "smtp_port": settings.smtp_port,
-        "smtp_tls": settings.smtp_tls,
-    }
-
-
-@router.post("/email-test")
-def email_test(payload: EmailTestIn, _: User = Depends(require_roles(Role.hse))) -> dict[str, bool]:
-    try:
-        sent = send_email(
-            payload.to_email,
-            "Test email Gesprec",
-            "Ceci est un test d'envoi SMTP depuis la plateforme Gesprec.",
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Echec SMTP: {exc}")
-    return {"sent": sent}
 
 
 @router.get("/whatsapp-status")

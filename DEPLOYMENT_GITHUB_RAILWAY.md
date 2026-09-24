@@ -85,12 +85,6 @@ UPLOAD_DIR=/app/uploads
 MAX_UPLOAD_MB=8
 WHATSAPP_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USERNAME=
-SMTP_PASSWORD=
-SMTP_FROM=
-SMTP_TLS=true
 ```
 
 Pour `DATABASE_URL`, utiliser la variable fournie par le PostgreSQL Railway. Le backend accepte les formats Railway `postgres://...` et `postgresql://...`.
@@ -179,20 +173,7 @@ Les numeros des responsables doivent etre saisis dans `Utilisateurs` au format i
 +212600000000
 ```
 
-Pour l'envoi d'emails de secours, il faut un vrai compte SMTP. Par exemple le SMTP de votre entreprise, Gmail avec mot de passe d'application, Brevo, Mailgun ou SendGrid.
-
-Variables a renseigner:
-
-```text
-SMTP_HOST=smtp.votre-fournisseur.com
-SMTP_PORT=587
-SMTP_USERNAME=votre_login
-SMTP_PASSWORD=votre_mot_de_passe_smtp
-SMTP_FROM=gesprec@votre-domaine.com
-SMTP_TLS=true
-```
-
-Le QSSE peut tester l'envoi email et declencher les rappels WhatsApp J-1 depuis l'onglet `Utilisateurs`.
+Le QSSE peut declencher les rappels WhatsApp J-1 depuis l'onglet `Utilisateurs`.
 
 ## 8. Verification apres deploiement
 

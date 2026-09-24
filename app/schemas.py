@@ -117,7 +117,6 @@ class AssignmentIn(BaseModel):
     priority: str = "Normale"
     sla_date: str | None = None
     resources: str | None = None
-    email: str | None = Field(default=None, max_length=1000)
     phone_numbers: str | None = Field(default=None, max_length=500)
 
 
@@ -178,7 +177,6 @@ class DeclarationOut(BaseModel):
     priority: str | None = None
     sla_date: str | None = None
     resources: str | None = None
-    assigned_email: str | None = None
     assigned_phone_numbers: str | None = None
     assigned_at: datetime | None = None
 
