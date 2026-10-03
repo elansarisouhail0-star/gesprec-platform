@@ -451,6 +451,24 @@ function phoneStringForUsers(users){
   return phones.join(", ");
 }
 
+function whatsappLink(phone, message){
+  let number = String(phone || "").replace(/[^\d+]/g, "");
+  if(number.startsWith("+")) number = number.slice(1);
+  else if(number.startsWith("00")) number = number.slice(2);
+  return number ? "https://wa.me/" + number + "?text=" + encodeURIComponent(message) : "";
+}
+
+function deadlineWhatsappMessage(reference, atelier, slaDate){
+  return "Bonjour,\n" +
+    "Rappel Gesprec : la déclaration " + reference + " arrive à sa date limite le " + (slaDate || "-") + ".\n" +
+    "Atelier : " + atelier + "\n" +
+    "Merci de finaliser le traitement dans les délais.";
+}
+
+function linkifyWhatsapp(text){
+  return String(text || "").replace(/https:\/\/wa\.me\/[^\s|]+/g, url=>`<a href="${url}" target="_blank" rel="noopener">${url.split("?")[0]}</a>`);
+}
+
 function selectedPhoneListHTML(users){
   const rows = phonesForUsers(users);
   if(!rows.length) return `<div style="font-size:12px;color:var(--text-dim);">Selectionnez un ou plusieurs responsables.</div>`;
@@ -1340,7 +1358,7 @@ function modalHTML(dec){
         ${dec.historique.map((h,i)=>`<div class="hist-item ${state.openHistoryIndex===i?'open':''}" data-history-index="${i}">
           <b>${h.date}</b>
           <div class="hist-summary">${historySummary(h.action)}</div>
-          <div class="hist-detail">${h.action}</div>
+          <div class="hist-detail">${linkifyWhatsapp(h.action)}</div>
         </div>`).join("")}
       </div>
     </div>
@@ -1655,14 +1673,19 @@ function bindEvents(){
       toast("Sélectionnez au moins un responsable de traitement.");
       return;
     }
+    const phoneNumbers = (document.getElementById("af_phone_values") && document.getElementById("af_phone_values").value.trim()) || "";
+    const autoWhatsapp = !!(state.whatsappStatus && state.whatsappStatus.whatsapp_enabled);
+    // Ouvert pendant le clic pour ne pas être bloqué par le navigateur ; l'URL wa.me est définie après l'affectation.
+    const waWindow = phoneNumbers && !autoWhatsapp ? window.open("about:blank", "_blank") : null;
     doAffectation(btnAffecter.dataset.id, {
+      waWindow,
       service: document.getElementById("af_service").value || "Non précisé",
       responsable: selectedUsers.map(u=>u.full_name).join(", ") || "Non précisé",
       responsibleIds: selectedUsers.map(u=>Number(u.id)),
       priorite: document.getElementById("af_prio").value,
       slaDate: document.getElementById("af_sla").value || "—",
       ressources: document.getElementById("af_ress").value,
-      phoneNumbers: (document.getElementById("af_phone_values") && document.getElementById("af_phone_values").value.trim()) || ""
+      phoneNumbers
     });
   };
   document.querySelectorAll("[data-collaborator]").forEach(option=>{
@@ -2519,8 +2542,9 @@ doAnalyse = async function(id, payload){
 
 doAffectation = async function(id, payload){
   const dec = findDec(id);
+  const waWindow = payload.waWindow;
   try{
-    await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
+    const saved = await api("/declarations/" + dec.apiId + "/affectation", {method:"POST", body:JSON.stringify({
       service: payload.service,
       responsible: payload.responsable,
       responsible_ids: payload.responsibleIds || [],
@@ -2529,8 +2553,26 @@ doAffectation = async function(id, payload){
       resources: payload.ressources,
       phone_numbers: payload.phoneNumbers || null
     })});
-    await refreshData(); render(); toast("Déclaration affectée.");
-  }catch(e){ toast(e.message || "Affectation impossible."); }
+    const phones = splitMulti(saved.assigned_phone_numbers || payload.phoneNumbers);
+    const message = deadlineWhatsappMessage(saved.reference, saved.atelier, saved.sla_date);
+    const link = phones.length ? whatsappLink(phones[0], message) : "";
+    if(waWindow && !waWindow.closed){
+      if(link) waWindow.location.href = link; else waWindow.close();
+    }
+    await refreshData(); render();
+    if(waWindow && link){
+      toast(phones.length > 1
+        ? "Déclaration affectée. WhatsApp ouvert pour " + phones[0] + " ; liens des autres numéros dans l'historique."
+        : "Déclaration affectée. WhatsApp ouvert avec le message.");
+    }else if(!waWindow && link && !(state.whatsappStatus && state.whatsappStatus.whatsapp_enabled)){
+      toast("Déclaration affectée. Fenêtre WhatsApp bloquée : utilisez le lien dans l'historique.");
+    }else{
+      toast("Déclaration affectée.");
+    }
+  }catch(e){
+    if(waWindow && !waWindow.closed) waWindow.close();
+    toast(e.message || "Affectation impossible.");
+  }
 };
 
 doPlanification = async function(id, payload){
